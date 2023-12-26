@@ -1,7 +1,7 @@
 ! Module for Monte Carlo Algorithm
 MODULE MODMC
   USE MODTEMPAR
-  USE MODPBCLJ
+  USE MODLJ
   USE MODUTIL
   IMPLICIT NONE
 

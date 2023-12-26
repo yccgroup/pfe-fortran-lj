@@ -1,8 +1,7 @@
-MODULE MODFBCLJ
+MODULE MODLJ
   USE MODTEMPAR 
   IMPLICIT NONE
 
-  ! Define FBCLJ type (same type name as PBCLJ, change via USE MODULE, keep the code separated while compiling)
   TYPE :: LJ
       INTEGER :: natoms
       REAL*8  :: mass, epsilom, sigma
@@ -218,4 +217,4 @@ MODULE MODFBCLJ
     
 
 
-END MODULE MODFBCLJ
+END MODULE MODLJ
