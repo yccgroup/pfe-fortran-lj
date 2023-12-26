@@ -1,0 +1,20 @@
+100                    # System natoms
+39.9                   # System mass (39.948 amu) 
+0.238                  # System epsilon (143.2 * kB kcal/mol)
+3.4                    # System sigma (3.759 Angstrom)       
+42.8373157             # System boxsize (particle density 0.05 in reduced unit) 
+10.2                   # System LJ cutoff (3.0*sigma)
+300                    # temperature (K)
+10000                  # MCeq nsteps
+3.0                    # MCeq stepsize
+1000                   # MCeq output frequency
+1000000                # MC nsteps
+3.0                    # MC stepsize
+10                     # MC output frequency
+4                      # rafep outlier cutoff
+1000                   # NS nsamples
+5000                   # NS nsteps
+0.5                    # NS stepsize
+0.99                   # NS fraction (next volume's ratio to the current one)
+1e12                   # NS root energy (starting point, full configuration space)
+
