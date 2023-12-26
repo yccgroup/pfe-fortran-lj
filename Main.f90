@@ -3,6 +3,7 @@ PROGRAM Main
   USE MODMC
   USE MODNSRAFEP
   USE MODPBCLJ
+  USE MODDEBUG
   IMPLICIT NONE
 
   INTEGER :: i, j, k
@@ -107,25 +108,7 @@ PROGRAM Main
   PRINT *, "Average energy (kJ/mol) =", SUM(MC%Energy)*(System%epsilom*cal2joule)/MC%outdim
 
   ! For 2 atoms debug
-  Z = 0.d0
-  expectation = 0.d0
-  dr = System%rc / 10000
-  DO i=1,10000
-    r = (i-1)*dr
-    ! do not calculate the sum if the distance is too small
-    IF (r < 0.1d0) THEN
-      CONTINUE
-    ELSE
-      pot = System%calcpairpot(r*r)
-      prob = EXP(-beta*pot)
-      Z = Z + prob*(4*3.1415926536*r*r)*dr
-      expectation = expectation + prob*pot*(4*3.1415926536*r*r)*dr
-    END IF
-  END DO
-  restV = System%L**3 - 4*3.1415926536/3.d0 * System%rc**3
-  Z = Z + restV
-  PRINT *, "Energy expectation for 2 atoms (kJ/mol) =", expectation*(System%epsilom*cal2joule)/Z
-
+  IF (System%natoms == 2) CALL DEBUG(System)
 
 
   STOP
@@ -139,3 +122,4 @@ PROGRAM Main
   
 STOP
 END PROGRAM Main
+
