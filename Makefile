@@ -1,6 +1,3 @@
-# PBC or FBC
-BC := PBC
-
 # compiler
 FC = gfortran
 
@@ -11,18 +8,14 @@ FCFLAGS = -g -c -O2
 FLFLAGS =
 
 # source files and objects
-SRCS = tempar.f90 utilities.f90 $(BC)LJparticles.f90 sampling.f90 nsrafep.f90 debug.f90 Main.f90
+SRCS = tempar.f90 utilities.f90 LJparticles.f90 sampling.f90 nsrafep.f90 debug.f90 Main.f90
 OBJS = $(patsubst %.f90, %.o, $(SRCS))
 
 # program name
-PROGRAM = rafep-$(BC)
+PROGRAM = rafep
 
 all:
-	make rafep BC=PBC
-	make rafep BC=FBC
-
-.PHONY: rafep
-rafep: $(PROGRAM)
+	make rafep
 
 $(PROGRAM): $(OBJS)
 	$(FC) $(FLFLAGS) -o $@ $+
@@ -31,5 +24,5 @@ $(PROGRAM): $(OBJS)
 	$(FC) $(FCFLAGS) -o $@ $<
 
 clean:
-	rm -f *.o *.mod rafep-PBC rafep-FBC
+	rm -f *.o *.mod rafep
 
