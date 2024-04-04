@@ -18,24 +18,31 @@ MODULE MODUTIL
   
   
   ! Interpolate the data
-  FUNCTION INTERPOLATE(Lenergy,LV0,nlevel,desire_energy) RESULT(V0)
+  FUNCTION INTERPOLATE(levels,volumes,nlevel,Etarget) RESULT(Vtarget)
     IMPLICIT NONE
     INTEGER :: i
     INTEGER :: nlevel, levelid
-    REAL*8 :: desire_energy, V0, slope, val, Lenergy(nlevel), LV0(nlevel)
-  
+    REAL*8 :: Etarget, Vtarget, slope, val, levels(nlevel), volumes(nlevel)
+
+    levelid = 0
     ! find where enegy locates
     DO i = 1, nlevel-1
-      val = (Lenergy(i) - desire_energy) * (Lenergy(i+1) - desire_energy)
+      val = (levels(i) - Etarget) * (levels(i+1) - Etarget)
       IF (val < 0) THEN
         levelid = i
         EXIT
       END IF
     END DO
   
+    ! Check if levelid is correctly found
+    IF (levelid == 0) THEN
+      PRINT *, "ERROR, levelid = 0, interpolation failed!"
+      STOP 1
+    END IF
+
     ! interpolate
-    slope = (LV0(levelid)-LV0(levelid+1))/(Lenergy(levelid)-Lenergy(levelid+1))
-    V0 = LV0(levelid) + slope * (desire_energy - Lenergy(levelid))
+    slope = (volumes(levelid)-volumes(levelid+1))/(levels(levelid)-levels(levelid+1))
+    Vtarget = volumes(levelid) + slope * (Etarget - levels(levelid))
   END FUNCTION INTERPOLATE
 
 END MODULE MODUTIL

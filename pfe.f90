@@ -125,9 +125,22 @@ MODULE MODPFE
   
     END DO
    
-    ! interpolate to find desired relative volume at Emax
-    self%volume = INTERPOLATE(self%levels,self%volumes,self%nlevel,self%Emax)
+
+    IF (self%Emax == 0.d0) THEN
+      ! Emax = 0.d0 is a discontinuity in accessible volume space. It cannot be treated using linear interpolation.
+      self%volume = self%volumes(self%nlevel-1)
+    ELSE
+      ! interpolate to find target relative volume at Emax
+      self%volume = INTERPOLATE(self%levels,self%volumes,self%nlevel,self%Emax)
+    END IF
     PRINT *, "DEBUG volume = ", self%volume
+
+    ! Ouput levels (unit: kj/mol)
+    OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
+    DO i=1,self%nlevel
+      WRITE(20,*) self%levels(i)*cal2joule, self%volumes(i)
+    END DO
+    CLOSE(20)
 
   END SUBROUTINE NSVolume
   
