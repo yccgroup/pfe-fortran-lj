@@ -12,7 +12,7 @@ MODULE MODUTIL
     REAL*8 :: rand
   
     CALL RANDOM_NUMBER(rand)
-    aid = FLOOR((natoms+1)*rand)
+    aid = FLOOR(natoms*rand)+1
   
   END FUNCTION RANDOM_INTEGER
   

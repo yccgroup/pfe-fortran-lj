@@ -6,13 +6,14 @@ MODULE MODMC
   IMPLICIT NONE
 
   TYPE MC
-    INTEGER :: nsteps, outfreq, outdim, newoutdim
+    INTEGER :: nsteps, outfreq, outdim
     REAL*8  :: stepsize
     REAL*8  :: Accept
-    REAL*8, ALLOCATABLE :: Traj(:,:,:), Energy(:), NewTraj(:,:,:), NewEnergy(:)
+    REAL*8, ALLOCATABLE :: Traj(:,:,:), Energy(:)
     CONTAINS
       PROCEDURE :: rdinp => mc_rdinp
       PROCEDURE :: Sampling
+      PROCEDURE :: Truncate
   END TYPE MC 
 
   CONTAINS
@@ -109,5 +110,45 @@ MODULE MODMC
     
   END SUBROUTINE Metropolis
 
+  ! Truncate MC points with high energy
+  SUBROUTINE Truncate(self, cutoff)
+    CLASS(MC) :: self
+    INTEGER :: i, mycount
+    INTEGER :: natoms, newoutdim
+    REAL*8 :: cutoff
+    REAL*8, ALLOCATABLE :: Energy(:), Traj(:,:,:) 
+  
+    ! get value of natoms
+    natoms = SIZE(self%Traj,2)
+
+    ! calculate newoutdim (number of data with energy < threshold)
+    newoutdim = 0
+    DO i = 1, self%outdim
+      IF (self%Energy(i) < cutoff) THEN
+        newoutdim = newoutdim + 1
+      END IF
+    END DO
+  
+    ! allocate the arrays
+    ALLOCATE(Energy(newoutdim),Traj(3,natoms,newoutdim))
+  
+    ! truncate the unwanted energy and associated trajectory
+    mycount = 0
+    DO i = 1, self%outdim
+      IF (self%Energy(i) < cutoff) THEN
+        mycount = mycount + 1
+        Energy(mycount) = self%Energy(i)
+        Traj(:,:,mycount) = self%Traj(:,:,i)
+      END IF
+    END DO
+
+    ! assign the truncated data to self
+    DEALLOCATE(self%Energy,self%Traj)
+    CALL MOVE_ALLOC(Energy,self%Energy)
+    CALL MOVE_ALLOC(Traj,self%Traj)
+    self%outdim = newoutdim
+  
+  END SUBROUTINE Truncate
+  
 
 END MODULE MODMC

@@ -9,7 +9,7 @@ MODULE MODLJ
       REAL*8, ALLOCATABLE :: XYZ(:,:)
     CONTAINS
       PROCEDURE :: rdinp => lj_rdinp
-      PROCEDURE :: init
+      PROCEDURE :: init => lj_init
       PROCEDURE :: genXYZ
       PROCEDURE :: calcr2
       PROCEDURE :: calcpairpot
@@ -36,7 +36,7 @@ MODULE MODLJ
     END SUBROUTINE lj_rdinp
 
     ! initialize the system parameters and coordinates
-    SUBROUTINE init(self)
+    SUBROUTINE lj_init(self)
       CLASS(LJ) :: self
       REAL*8 :: sig_rc
 
@@ -46,7 +46,7 @@ MODULE MODLJ
 
       ALLOCATE(self%XYZ(3,self%natoms))
       CALL self%genXYZ()
-    END SUBROUTINE
+    END SUBROUTINE lj_init
 
     ! initialize the LJ particles' coordinates
     SUBROUTINE genXYZ(self)

@@ -2,17 +2,16 @@ PROGRAM Main
   USE MODCONST
   USE MODLJ
   USE MODMC
+  USE MODPFE
+  USE MODDEBUG
   IMPLICIT NONE
-
-  !REAL*8 :: Z, lnZ
-  !REAL*8 :: r, dr, pot, prob, expectation, restV
-  !TYPE(NSRAFEPPAR) :: NS
 
   TYPE(LJ) :: System
   TYPE(MC) :: MCeq, MCrun
+  TYPE(PFE) :: Parfu
   INTEGER :: i, j, k
   REAL*8 :: temperature, beta, kBT
-
+  REAL*8 :: cutoff
 
   ! Read inputs from file input.dat
   OPEN(UNIT=10,FILE="input.dat",STATUS="OLD",ACTION="READ")
@@ -29,13 +28,11 @@ PROGRAM Main
   ! production run MC parameters
   CALL MCrun%rdinp(10)
 
-  !! Inputs of RAFEP and NS parameters
-  !READ(10,*) NS%rafep_cutoff
-  !READ(10,*) NS%nsamples
-  !READ(10,*) NS%nsteps
-  !READ(10,*) NS%stepsize
-  !READ(10,*) NS%fractiom
-  !READ(10,*) NS%root_energy
+  ! cutoff
+  READ(10,*) cutoff
+
+  ! pfe parameters
+  CALL Parfu%rdinp(10)
 
   CLOSE(10)
 
@@ -86,17 +83,18 @@ PROGRAM Main
   PRINT *, "Acceptance rate =", MCrun%Accept
   PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
 
-  ! For 2 atoms debug
-  !IF (System%natoms == 2) CALL DEBUG(System,beta)
-
   ! Remove the sampling outlier
-  !NS%rafep_cutoff = NS%rafep_cutoff*kBT + MINVAL(MC%Energy)
-  !CALL Truncate(MC,System%natoms,NS%rafep_cutoff)
-  
+  cutoff = cutoff*kBT + MINVAL(MCrun%Energy)
+  CALL MCrun%Truncate(cutoff)
+  PRINT *, "Average energy after truncation (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
+  PRINT*, "cutoff = ", cutoff
+
   ! RAFEP
-  !Z = Partition_RAFEP(System,NS,MC%NewEnergy,beta)
-  !print *, "RAFEP Zest:", Z
+  CALL Parfu%PartFunc(System,MCrun%Energy,beta)
+  print *, "RAFEP Zest:", EXP(Parfu%lnZ)
   
-STOP
+  ! For 2 atoms debug
+  IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu%lnZ))
+
 END PROGRAM Main
 
