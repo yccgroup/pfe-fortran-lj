@@ -16,35 +16,26 @@ PROGRAM Main
 
   ! Read inputs from file input.dat
   OPEN(UNIT=10,FILE="input.dat",STATUS="OLD",ACTION="READ")
+  
+  ! temperature
+  READ(10,*) temperature
 
-    ! Inputs of System parameters
-    READ(10,*) System%natoms
-    READ(10,*) System%mass
-    READ(10,*) System%epsilom
-    READ(10,*) System%sigma
-    READ(10,*) System%L
-    READ(10,*) System%rc
+  ! system parameters
+  CALL System%rdinp(10)
 
-    ! Inputs of TEMP parameters
-    READ(10,*) temperature
+  ! equilibrium MC parameters
+  CALL MCeq%rdinp(10)
 
-    ! Inputs of MCeq parameters
-    READ(10,*) MCeq%nsteps
-    READ(10,*) MCeq%stepsize
-    READ(10,*) MCeq%outfreq
+  ! production run MC parameters
+  CALL MCrun%rdinp(10)
 
-    ! Inputs of MCrun parameters
-    READ(10,*) MCrun%nsteps
-    READ(10,*) MCrun%stepsize
-    READ(10,*) MCrun%outfreq
-
-    !! Inputs of RAFEP and NS parameters
-    !READ(10,*) NS%rafep_cutoff
-    !READ(10,*) NS%nsamples
-    !READ(10,*) NS%nsteps
-    !READ(10,*) NS%stepsize
-    !READ(10,*) NS%fractiom
-    !READ(10,*) NS%root_energy
+  !! Inputs of RAFEP and NS parameters
+  !READ(10,*) NS%rafep_cutoff
+  !READ(10,*) NS%nsamples
+  !READ(10,*) NS%nsteps
+  !READ(10,*) NS%stepsize
+  !READ(10,*) NS%fractiom
+  !READ(10,*) NS%root_energy
 
   CLOSE(10)
 
@@ -57,26 +48,15 @@ PROGRAM Main
     STOP
   END IF
 
-  ! Unit transform (to reduced units)
-  System%L = System%L/System%sigma
-  System%rc = System%rc/System%sigma 
-  temperature = kB*temperature/System%epsilom
-  MCeq%stepsize = MCeq%stepsize/System%sigma
-  MCrun%stepsize = MCrun%stepsize/System%sigma
-  !NS%stepsize = NS%stepsize/System%sigma
-  !NS%root_energy = NS%root_energy/System%epsilom
 
   ! Initialize parameters
-  System%rc2 = System%rc**2
-  System%Ec = 4*(1.d0/System%rc**12 - 1.d0/System%rc**6)
-  beta = 1.d0/temperature
-  kBT = temperature
+  kBT = kB*temperature
+  beta = 1.d0/kBT
   MCeq%outdim = MCeq%nsteps/MCeq%outfreq
   MCrun%outdim = MCrun%nsteps/MCrun%outfreq
 
   ! Build LJ system and calculate the system energy
-  ALLOCATE(System%XYZ(3,System%natoms))
-  CALL System%genXYZ()
+  CALL System%init()
   CALL System%calcenergy()
 
   ! Pre-equilibration
@@ -86,25 +66,25 @@ PROGRAM Main
   CALL MCrun%Sampling(System,beta)
   
   ! Output MC Trajectory
-  OPEN(UNIT=10,FILE="Traj.dat",STATUS="UNKNOWN")
+  OPEN(UNIT=20,FILE="Traj.dat",STATUS="UNKNOWN")
   DO i=1,MCrun%outdim
-    WRITE(10,*) "Time = ", i*MCrun%outfreq
+    WRITE(20,*) "Time = ", i*MCrun%outfreq
     DO j=1,System%natoms
-      WRITE(10,*) (MCrun%Traj(k,j,i)*System%sigma, k=1,3)
+      WRITE(20,*) (MCrun%Traj(k,j,i), k=1,3)
     END DO
   END DO
-  CLOSE(10)
+  CLOSE(20)
 
   ! Ouput MC Energy (unit: kj/mol)
-  OPEN(UNIT=10,FILE="Energy.dat",STATUS="UNKNOWN")
+  OPEN(UNIT=20,FILE="Energy.dat",STATUS="UNKNOWN")
   DO i=1,MCrun%outdim
-    WRITE(10,*) MCrun%Energy(i)*(System%epsilom*cal2joule)
+    WRITE(20,*) MCrun%Energy(i)*cal2joule
   END DO
-  CLOSE(10)
+  CLOSE(20)
   
   ! Output MC Statistics (unit: kj/mol)
   PRINT *, "Acceptance rate =", MCrun%Accept
-  PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*(System%epsilom*cal2joule)/MCrun%outdim
+  PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
 
   ! For 2 atoms debug
   !IF (System%natoms == 2) CALL DEBUG(System,beta)

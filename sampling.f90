@@ -11,6 +11,7 @@ MODULE MODMC
     REAL*8  :: Accept
     REAL*8, ALLOCATABLE :: Traj(:,:,:), Energy(:), NewTraj(:,:,:), NewEnergy(:)
     CONTAINS
+      PROCEDURE :: rdinp => mc_rdinp
       PROCEDURE :: Sampling
   END TYPE MC 
 
@@ -20,7 +21,17 @@ MODULE MODMC
   ! Subroutines for Monte Carlo Sampling 
   !
   !-----------------------------------------------------------------------------
-  
+ 
+  ! read input parameters 
+  SUBROUTINE mc_rdinp(self,fd)
+    CLASS(MC) :: self
+    INTEGER :: fd
+
+    READ(fd,*) self%nsteps
+    READ(fd,*) self%stepsize
+    READ(fd,*) self%outfreq
+  END SUBROUTINE mc_rdinp
+
   ! Monte Carlo Sampling
   SUBROUTINE Sampling(self,System,beta)
     CLASS(MC) :: self

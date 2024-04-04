@@ -8,6 +8,8 @@ MODULE MODLJ
       REAL*8  :: L, rc, rc2, Ec, energy 
       REAL*8, ALLOCATABLE :: XYZ(:,:)
     CONTAINS
+      PROCEDURE :: rdinp => lj_rdinp
+      PROCEDURE :: init
       PROCEDURE :: genXYZ
       PROCEDURE :: calcr2
       PROCEDURE :: calcpairpot
@@ -20,6 +22,31 @@ MODULE MODLJ
   
   CONTAINS
   
+    ! read input parameters
+    SUBROUTINE lj_rdinp(self,fd)
+      CLASS(LJ) :: self
+      INTEGER :: fd
+
+      READ(fd,*) self%natoms
+      READ(fd,*) self%mass
+      READ(fd,*) self%epsilom
+      READ(fd,*) self%sigma
+      READ(fd,*) self%L
+      READ(fd,*) self%rc   
+    END SUBROUTINE lj_rdinp
+
+    ! initialize the system parameters and coordinates
+    SUBROUTINE init(self)
+      CLASS(LJ) :: self
+      REAL*8 :: sig_rc
+
+      self%rc2 = self%rc**2
+      sig_rc = self%sigma/self%rc
+      self%Ec = 4*self%epsilom*(sig_rc**12 - sig_rc**6)
+
+      ALLOCATE(self%XYZ(3,self%natoms))
+      CALL self%genXYZ()
+    END SUBROUTINE
 
     ! initialize the LJ particles' coordinates
     SUBROUTINE genXYZ(self)
@@ -28,7 +55,6 @@ MODULE MODLJ
       CALL RANDOM_NUMBER(self%XYZ)
       self%XYZ = self%XYZ * self%L
     END SUBROUTINE genXYZ
-
 
     ! calculate r2 between particle i and j
     FUNCTION calcr2(self,i,j) RESULT(r2)
@@ -55,7 +81,7 @@ MODULE MODLJ
     ! calculate a single pair potential
     FUNCTION calcpairpot(self,r2) RESULT(pot)
       CLASS(LJ) :: self
-      REAL*8 :: r2
+      REAL*8 :: r2, r_2
       REAL*8 :: r_6, r_12, pot
       
       ! potential cutoff
@@ -64,9 +90,10 @@ MODULE MODLJ
         RETURN
       END IF
 
-      r_6  = 1.d0 / (r2*r2*r2)
+      r_2 = self%sigma**2 / r2
+      r_6  = r_2 * r_2 * r_2
       r_12 = r_6 * r_6
-      pot  = 4 * (r_12 - r_6) - self%Ec
+      pot  = 4 * self%epsilom * (r_12 - r_6) - self%Ec
     END FUNCTION calcpairpot
 
 

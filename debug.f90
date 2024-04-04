@@ -30,7 +30,7 @@ MODULE MODDEBUG
     END DO
     restV = System%L**3 - 4*pi/3.d0 * System%rc**3
     Z = Z + restV
-    PRINT *, "Energy expectation for 2 atoms (kJ/mol) =", expectation*(System%epsilom*cal2joule)/Z
+    PRINT *, "Energy expectation for 2 atoms (kJ/mol) =", expectation*cal2joule/Z
   
   END SUBROUTINE DEBUG
 
