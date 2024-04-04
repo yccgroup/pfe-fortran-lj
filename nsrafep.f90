@@ -1,6 +1,6 @@
 ! Module for NS/RAFEP methods
 MODULE MODNSRAFEP
-    USE MODTEMPAR
+    USE MODCONST
     USE MODLJ
     USE MODMC 
     USE MODUTIL
@@ -22,35 +22,35 @@ MODULE MODNSRAFEP
   !
   !---------------------------------------------------------------------------------
   
-  SUBROUTINE Truncate(MC, natoms, cutoff)
-    TYPE(MCPAR) :: MC
+  SUBROUTINE Truncate(MCrun, natoms, cutoff)
+    TYPE(MC) :: MCrun
     INTEGER :: natoms
     INTEGER :: i, mycount, outdim, newoutdim
     REAL*8 :: cutoff
   
   
     ! reassign parameters
-    outdim = MC%outdim
+    outdim = MCrun%outdim
   
     ! calculate newoutdim (number of data with energy < threshold)
     newoutdim = 0
     DO i = 1, outdim
-      IF (MC%Energy(i) < cutoff) THEN
+      IF (MCrun%Energy(i) < cutoff) THEN
         newoutdim = newoutdim + 1
       END IF
     END DO
-    MC%newoutdim = newoutdim
+    MCrun%newoutdim = newoutdim
   
     ! allocate the arrays
-    ALLOCATE(MC%NewTraj(3,natoms,newoutdim),MC%NewEnergy(newoutdim))
+    ALLOCATE(MCrun%NewTraj(3,natoms,newoutdim),MCrun%NewEnergy(newoutdim))
   
     ! truncate the unwanted energy and associated trajectory
     mycount = 0
     DO i = 1, outdim
-      IF (MC%Energy(i) < cutoff) THEN
+      IF (MCrun%Energy(i) < cutoff) THEN
         mycount = mycount + 1
-        MC%NewEnergy(mycount) = MC%Energy(i)
-        MC%NewTraj(:,:,mycount) = MC%Traj(:,:,i)
+        MCrun%NewEnergy(mycount) = MCrun%Energy(i)
+        MCrun%NewTraj(:,:,mycount) = MCrun%Traj(:,:,i)
       END IF
     END DO
   
@@ -58,13 +58,14 @@ MODULE MODNSRAFEP
   
   
   ! Calculate the partition function via RAFEP under PBC
-  FUNCTION Partition_RAFEP(System,NS,Energy) RESULT(Z)
+  FUNCTION Partition_RAFEP(System,NS,Energy,beta) RESULT(Z)
     TYPE(LJ) :: System
     TYPE(NSRAFEPPAR) :: NS
     INTEGER :: nsamples, nsteps, nlevel, outdim
-    REAL*8  :: stepsize, fractiom
-    REAL*8  :: V0, volume, Avg, Z
-    REAL*8  :: Energy(:)
+    REAL*8 :: beta 
+    REAL*8 :: stepsize, fractiom
+    REAL*8 :: V0, volume, Avg, Z
+    REAL*8 :: Energy(:)
     REAL*8, ALLOCATABLE  :: Work(:)
 
     ! initialization

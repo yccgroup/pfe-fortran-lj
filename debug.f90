@@ -1,16 +1,16 @@
 MODULE MODDEBUG
 
-  USE MODTEMPAR
+  USE MODCONST
   USE MODLJ
   IMPLICIT NONE
 
   CONTAINS
 
-  SUBROUTINE DEBUG(System)
+  SUBROUTINE DEBUG(System,beta)
     INTEGER :: i
+    REAL*8 :: beta
     REAL*8 :: Z
     REAL*8 :: r, dr, pot, prob, expectation, restV
-    REAL*8, PARAMETER :: cal2joule = 4.18400
     CLASS(LJ) :: System
   
     Z = 0.d0
@@ -24,11 +24,11 @@ MODULE MODDEBUG
       ELSE
         pot = System%calcpairpot(r*r)
         prob = EXP(-beta*pot)
-        Z = Z + prob*(4*3.1415926536*r*r)*dr
-        expectation = expectation + prob*pot*(4*3.1415926536*r*r)*dr
+        Z = Z + prob*(4*pi*r*r)*dr
+        expectation = expectation + prob*pot*(4*pi*r*r)*dr
       END IF
     END DO
-    restV = System%L**3 - 4*3.1415926536/3.d0 * System%rc**3
+    restV = System%L**3 - 4*pi/3.d0 * System%rc**3
     Z = Z + restV
     PRINT *, "Energy expectation for 2 atoms (kJ/mol) =", expectation*(System%epsilom*cal2joule)/Z
   

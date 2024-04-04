@@ -1,18 +1,17 @@
 PROGRAM Main
-  USE MODTEMPAR
-  USE MODMC
-  USE MODNSRAFEP
+  USE MODCONST
   USE MODLJ
-  USE MODDEBUG
+  USE MODMC
   IMPLICIT NONE
 
-  INTEGER :: i, j, k
-  REAL*8 :: Z, lnZ
-  REAL*8 :: r, dr, pot, prob, expectation, restV
-  REAL*8, PARAMETER :: cal2joule = 4.18400
+  !REAL*8 :: Z, lnZ
+  !REAL*8 :: r, dr, pot, prob, expectation, restV
+  !TYPE(NSRAFEPPAR) :: NS
+
   TYPE(LJ) :: System
-  TYPE(MCPAR) :: MCeq, MC
-  TYPE(NSRAFEPPAR) :: NS
+  TYPE(MC) :: MCeq, MCrun
+  INTEGER :: i, j, k
+  REAL*8 :: temperature, beta, kBT
 
 
   ! Read inputs from file input.dat
@@ -34,18 +33,18 @@ PROGRAM Main
     READ(10,*) MCeq%stepsize
     READ(10,*) MCeq%outfreq
 
-    ! Inputs of MC parameters
-    READ(10,*) MC%nsteps
-    READ(10,*) MC%stepsize
-    READ(10,*) MC%outfreq
+    ! Inputs of MCrun parameters
+    READ(10,*) MCrun%nsteps
+    READ(10,*) MCrun%stepsize
+    READ(10,*) MCrun%outfreq
 
-    ! Inputs of RAFEP and NS parameters
-    READ(10,*) NS%rafep_cutoff
-    READ(10,*) NS%nsamples
-    READ(10,*) NS%nsteps
-    READ(10,*) NS%stepsize
-    READ(10,*) NS%fractiom
-    READ(10,*) NS%root_energy
+    !! Inputs of RAFEP and NS parameters
+    !READ(10,*) NS%rafep_cutoff
+    !READ(10,*) NS%nsamples
+    !READ(10,*) NS%nsteps
+    !READ(10,*) NS%stepsize
+    !READ(10,*) NS%fractiom
+    !READ(10,*) NS%root_energy
 
   CLOSE(10)
 
@@ -58,14 +57,14 @@ PROGRAM Main
     STOP
   END IF
 
-  ! Unit transform (to reduce units)
+  ! Unit transform (to reduced units)
   System%L = System%L/System%sigma
   System%rc = System%rc/System%sigma 
   temperature = kB*temperature/System%epsilom
   MCeq%stepsize = MCeq%stepsize/System%sigma
-  MC%stepsize = MC%stepsize/System%sigma
-  NS%stepsize = NS%stepsize/System%sigma
-  NS%root_energy = NS%root_energy/System%epsilom
+  MCrun%stepsize = MCrun%stepsize/System%sigma
+  !NS%stepsize = NS%stepsize/System%sigma
+  !NS%root_energy = NS%root_energy/System%epsilom
 
   ! Initialize parameters
   System%rc2 = System%rc**2
@@ -73,7 +72,7 @@ PROGRAM Main
   beta = 1.d0/temperature
   kBT = temperature
   MCeq%outdim = MCeq%nsteps/MCeq%outfreq
-  MC%outdim = MC%nsteps/MC%outfreq
+  MCrun%outdim = MCrun%nsteps/MCrun%outfreq
 
   ! Build LJ system and calculate the system energy
   ALLOCATE(System%XYZ(3,System%natoms))
@@ -81,44 +80,42 @@ PROGRAM Main
   CALL System%calcenergy()
 
   ! Pre-equilibration
-  CALL MCSampling(System, MCeq)
+  CALL MCeq%Sampling(System,beta)
 
   ! Monte Carlo Sampling
-  CALL MCSampling(System, MC)
+  CALL MCrun%Sampling(System,beta)
   
   ! Output MC Trajectory
   OPEN(UNIT=10,FILE="Traj.dat",STATUS="UNKNOWN")
-  DO i=1,MC%outdim
-    WRITE(10,*) "Time = ", i*MC%outfreq
+  DO i=1,MCrun%outdim
+    WRITE(10,*) "Time = ", i*MCrun%outfreq
     DO j=1,System%natoms
-      WRITE(10,*) (MC%Traj(k,j,i)*System%sigma, k=1,3)
+      WRITE(10,*) (MCrun%Traj(k,j,i)*System%sigma, k=1,3)
     END DO
   END DO
   CLOSE(10)
 
-  ! Ouput MC Energy
+  ! Ouput MC Energy (unit: kj/mol)
   OPEN(UNIT=10,FILE="Energy.dat",STATUS="UNKNOWN")
-  DO i=1,MC%outdim
-    WRITE(10,*) MC%Energy(i)*System%epsilom
+  DO i=1,MCrun%outdim
+    WRITE(10,*) MCrun%Energy(i)*(System%epsilom*cal2joule)
   END DO
   CLOSE(10)
   
-  ! Output MC Statistics
-  PRINT *, "Acceptance rate =", MC%Accept
-  PRINT *, "Average energy (kJ/mol) =", SUM(MC%Energy)*(System%epsilom*cal2joule)/MC%outdim
+  ! Output MC Statistics (unit: kj/mol)
+  PRINT *, "Acceptance rate =", MCrun%Accept
+  PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*(System%epsilom*cal2joule)/MCrun%outdim
 
   ! For 2 atoms debug
-  IF (System%natoms == 2) CALL DEBUG(System)
+  !IF (System%natoms == 2) CALL DEBUG(System,beta)
 
-
-  STOP
   ! Remove the sampling outlier
-  NS%rafep_cutoff = NS%rafep_cutoff*kBT + MINVAL(MC%Energy)
-  CALL Truncate(MC,System%natoms,NS%rafep_cutoff)
+  !NS%rafep_cutoff = NS%rafep_cutoff*kBT + MINVAL(MC%Energy)
+  !CALL Truncate(MC,System%natoms,NS%rafep_cutoff)
   
   ! RAFEP
-  Z = Partition_RAFEP(System,NS,MC%NewEnergy)
-  print *, "RAFEP Zest:", Z
+  !Z = Partition_RAFEP(System,NS,MC%NewEnergy,beta)
+  !print *, "RAFEP Zest:", Z
   
 STOP
 END PROGRAM Main

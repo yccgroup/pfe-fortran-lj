@@ -1,5 +1,5 @@
 MODULE MODLJ
-  USE MODTEMPAR 
+  USE MODCONST
   IMPLICIT NONE
   
   TYPE :: LJ
@@ -9,12 +9,12 @@ MODULE MODLJ
       REAL*8, ALLOCATABLE :: XYZ(:,:)
     CONTAINS
       PROCEDURE :: genXYZ
+      PROCEDURE :: calcr2
       PROCEDURE :: calcpairpot
       PROCEDURE :: calcenergy
-      PROCEDURE :: partition_function_integral
-      PROCEDURE :: volume_integral 
       PROCEDURE :: move
-      PROCEDURE :: calcr2
+      !PROCEDURE :: partition_function_integral
+      !PROCEDURE :: volume_integral 
   END TYPE LJ
   
   
@@ -30,13 +30,15 @@ MODULE MODLJ
     END SUBROUTINE genXYZ
 
 
-    ! calculate r2
-    FUNCTION calcr2(self,dist) RESULT(r2)
+    ! calculate r2 between particle i and j
+    FUNCTION calcr2(self,i,j) RESULT(r2)
       CLASS(LJ) :: self
-      INTEGER :: k
+      INTEGER :: i, j, k
       REAL*8 :: r2
       REAL*8 :: dist(3)
     
+      dist = self%XYZ(:,i) - self%XYZ(:,j)
+
       DO k = 1, 3
         IF (dist(k) > 0.5d0*self%L) THEN
           dist(k) = dist(k) - self%L
@@ -72,13 +74,12 @@ MODULE MODLJ
     SUBROUTINE calcenergy(self)
       CLASS(LJ) :: self
       INTEGER :: i, j
-      REAL*8 :: dist(3), r2
+      REAL*8 :: r2
 
       self%energy =0.d0
       DO i = 1, self%natoms
         DO j = 1, i-1
-          dist = self%XYZ(:,i) - self%XYZ(:,j)
-          r2 = self%calcr2(dist)
+          r2 = self%calcr2(i,j)
           self%energy = self%energy + self%calcpairpot(r2)
         END DO
       END DO
@@ -112,119 +113,119 @@ MODULE MODLJ
     
     ! Debug: Up to here 
 
-    ! calculate the partition function via direct numerical integration    
-    FUNCTION partition_function_integral(self,upper,lower,dx) RESULT(Z)
-      CLASS(LJ) :: self
-      INTEGER :: i
-      INTEGER :: ndim, id1, id2, ndof
-      INTEGER, ALLOCATABLE :: indexs(:) 
-      REAL*8 :: upper, lower, dx
-      REAL*8 :: Z, dv, r2, V
-      REAL*8 :: x1(3), x2(3), dist(3)
-      REAL*8, ALLOCATABLE :: coords(:)
-      
-      ! initialization
-      ndim = NINT((upper-lower)/dx)
-      ndof = 3*self%natoms
-      Z = 0.d0
-      dv = dx**ndof
+!   ! calculate the partition function via direct numerical integration    
+!   FUNCTION partition_function_integral(self,upper,lower,dx) RESULT(Z)
+!     CLASS(LJ) :: self
+!     INTEGER :: i
+!     INTEGER :: ndim, id1, id2, ndof
+!     INTEGER, ALLOCATABLE :: indexs(:) 
+!     REAL*8 :: upper, lower, dx
+!     REAL*8 :: Z, dv, r2, V
+!     REAL*8 :: x1(3), x2(3), dist(3)
+!     REAL*8, ALLOCATABLE :: coords(:)
+!     
+!     ! initialization
+!     ndim = NINT((upper-lower)/dx)
+!     ndof = 3*self%natoms
+!     Z = 0.d0
+!     dv = dx**ndof
 
-      ! allocate the arrays
-      ALLOCATE(indexs(ndof),coords(ndof))
-      indexs(:) = 0
-      coords(:) = lower
+!     ! allocate the arrays
+!     ALLOCATE(indexs(ndof),coords(ndof))
+!     indexs(:) = 0
+!     coords(:) = lower
 
-      ! integration
-      DO WHILE (.TRUE.)
-        V = 0.d0
-        DO id1 = 0, self%natoms-1
-          x1 = coords(3*id1+1 : 3*id1+3)
-          DO id2 = 0, id1-1
-            x2 = coords(3*id2+1 : 3*id2+3)
-            dist = x2 - x1
-            r2 = self%calcr2(dist)
-            V = V + self%calcpairpot(r2)
-          END DO
-        END DO
-        Z  = Z + EXP(-beta*V)
-        DO i = 1, ndof
-           indexs(i) = indexs(i) + 1
-           coords(i) = lower + indexs(i)*dx
-           IF (indexs(i) >= ndim) THEN
-             indexs(i) = 0
-             coords(i) = lower
-           ELSE
-             EXIT
-           END IF
-        END DO
-        IF (ALL(indexs==0)) THEN
-          EXIT
-        END IF
+!     ! integration
+!     DO WHILE (.TRUE.)
+!       V = 0.d0
+!       DO id1 = 0, self%natoms-1
+!         x1 = coords(3*id1+1 : 3*id1+3)
+!         DO id2 = 0, id1-1
+!           x2 = coords(3*id2+1 : 3*id2+3)
+!           dist = x2 - x1
+!           r2 = self%calcr2(dist)
+!           V = V + self%calcpairpot(r2)
+!         END DO
+!       END DO
+!       Z  = Z + EXP(-beta*V)
+!       DO i = 1, ndof
+!          indexs(i) = indexs(i) + 1
+!          coords(i) = lower + indexs(i)*dx
+!          IF (indexs(i) >= ndim) THEN
+!            indexs(i) = 0
+!            coords(i) = lower
+!          ELSE
+!            EXIT
+!          END IF
+!       END DO
+!       IF (ALL(indexs==0)) THEN
+!         EXIT
+!       END IF
 
-      END DO
+!     END DO
 
-      Z = Z * dv
+!     Z = Z * dv
 
-    END FUNCTION partition_function_integral
+!   END FUNCTION partition_function_integral
 
 
-    ! calculate the volume via direct numerical integration    
-    FUNCTION volume_integral(self,upper,lower,dx,threshold) RESULT(Volume)
-      CLASS(LJ) :: self
-      INTEGER :: i
-      INTEGER :: ndim, id1, id2, ndof
-      INTEGER, ALLOCATABLE :: indexs(:) 
-      REAL*8 :: upper, lower, dx, threshold
-      REAL*8 :: dv, r2, V, Volume
-      REAL*8 :: x1(3), x2(3), dist(3)
-      REAL*8, ALLOCATABLE :: coords(:)
-      
-      ! initialization
-      ndim = NINT((upper-lower)/dx)
-      ndof = 3*self%natoms
-      Volume = 0.d0
-      dv = dx**ndof
+!   ! calculate the volume via direct numerical integration    
+!   FUNCTION volume_integral(self,upper,lower,dx,threshold) RESULT(Volume)
+!     CLASS(LJ) :: self
+!     INTEGER :: i
+!     INTEGER :: ndim, id1, id2, ndof
+!     INTEGER, ALLOCATABLE :: indexs(:) 
+!     REAL*8 :: upper, lower, dx, threshold
+!     REAL*8 :: dv, r2, V, Volume
+!     REAL*8 :: x1(3), x2(3), dist(3)
+!     REAL*8, ALLOCATABLE :: coords(:)
+!     
+!     ! initialization
+!     ndim = NINT((upper-lower)/dx)
+!     ndof = 3*self%natoms
+!     Volume = 0.d0
+!     dv = dx**ndof
 
-      ! allocate the arrays
-      ALLOCATE(indexs(ndof),coords(ndof))
-      indexs(:) = 0
-      coords(:) = lower
+!     ! allocate the arrays
+!     ALLOCATE(indexs(ndof),coords(ndof))
+!     indexs(:) = 0
+!     coords(:) = lower
 
-      ! integration
-      DO WHILE (.TRUE.)
-        V = 0.d0
-        DO id1 = 0, self%natoms-1
-          x1 = coords(3*id1+1 : 3*id1+3)
-          DO id2 = 0, id1-1
-            x2 = coords(3*id2+1 : 3*id2+3)
-            dist = x2 - x1
-            r2 = self%calcr2(dist)
-            V = V + self%calcpairpot(r2)
-          END DO
-        END DO
-        ! count the volume if the energy < threshold
-        IF (V < threshold) THEN
-          Volume = Volume + 1
-        END IF
-        DO i = 1, ndof
-           indexs(i) = indexs(i) + 1
-           coords(i) = lower + indexs(i)*dx
-           IF (indexs(i) >= ndim) THEN
-             indexs(i) = 0
-             coords(i) = lower
-           ELSE
-             EXIT
-           END IF
-        END DO
-        IF (ALL(indexs==0)) THEN
-          EXIT
-        END IF
+!     ! integration
+!     DO WHILE (.TRUE.)
+!       V = 0.d0
+!       DO id1 = 0, self%natoms-1
+!         x1 = coords(3*id1+1 : 3*id1+3)
+!         DO id2 = 0, id1-1
+!           x2 = coords(3*id2+1 : 3*id2+3)
+!           dist = x2 - x1
+!           r2 = self%calcr2(dist)
+!           V = V + self%calcpairpot(r2)
+!         END DO
+!       END DO
+!       ! count the volume if the energy < threshold
+!       IF (V < threshold) THEN
+!         Volume = Volume + 1
+!       END IF
+!       DO i = 1, ndof
+!          indexs(i) = indexs(i) + 1
+!          coords(i) = lower + indexs(i)*dx
+!          IF (indexs(i) >= ndim) THEN
+!            indexs(i) = 0
+!            coords(i) = lower
+!          ELSE
+!            EXIT
+!          END IF
+!       END DO
+!       IF (ALL(indexs==0)) THEN
+!         EXIT
+!       END IF
 
-      END DO
+!     END DO
 
-      Volume = Volume * dv
+!     Volume = Volume * dv
 
-    END FUNCTION volume_integral
+!   END FUNCTION volume_integral
          
 
 
