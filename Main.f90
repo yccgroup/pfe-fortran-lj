@@ -84,14 +84,17 @@ PROGRAM Main
   PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
 
   ! Remove the sampling outlier
-  cutoff = cutoff*kBT + MINVAL(MCrun%Energy)
+  !cutoff = cutoff*kBT + MINVAL(MCrun%Energy)
+  cutoff = cutoff*kBT + SUM(MCrun%Energy)/SIZE(MCrun%Energy)
+  PRINT *, "Before truncation size = ", MCrun%outdim, SIZE(MCrun%Energy)
   CALL MCrun%Truncate(cutoff)
+  PRINT *, "After truncation size = ", MCrun%outdim, SIZE(MCrun%Energy)
   PRINT *, "Average energy after truncation (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
   PRINT*, "cutoff = ", cutoff
 
   ! RAFEP
   CALL Parfu%PartFunc(System,MCrun%Energy,beta)
-  print *, "RAFEP Zest:", EXP(Parfu%lnZ)
+  print *, "RAFEP ln(Zest):", Parfu%lnZ
   
   ! For 2 atoms debug
   IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu%lnZ))
