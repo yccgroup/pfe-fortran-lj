@@ -14,6 +14,7 @@ MODULE MODMC
       PROCEDURE :: rdinp => mc_rdinp
       PROCEDURE :: Sampling
       PROCEDURE :: Truncate
+      PROCEDURE :: Minimize
   END TYPE MC 
 
   CONTAINS
@@ -149,6 +150,35 @@ MODULE MODMC
     self%outdim = newoutdim
   
   END SUBROUTINE Truncate
-  
 
+
+  ! Energy minimization for nsteps
+  SUBROUTINE Minimize(self,System)
+    CLASS(MC) :: self
+    TYPE(LJ) System
+    INTEGER :: i, aid
+    REAL*8 :: E1, E2
+    REAL*8 :: coords(3)
+  
+    coords = 0.d0
+    CALL System%calcenergy()
+    E1 = System%energy
+    DO i = 1, self%nsteps
+      aid = RANDOM_INTEGER(System%natoms)
+      coords(:) = System%XYZ(:,aid) 
+      CALL System%move(System%XYZ(:,aid),self%stepsize)
+      CALL System%calcenergy()
+      E2 = System%energy
+      IF (E2 > E1) THEN
+        ! reject the move if energy gets higher
+        System%XYZ(:,aid) = coords(:)
+        System%energy = E1
+      ELSE
+        ! accept the move if energy gets lower
+        E1 = E2
+      END IF
+    END DO
+  
+  END SUBROUTINE Minimize
+  
 END MODULE MODMC

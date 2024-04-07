@@ -16,6 +16,8 @@ MODULE MODPFE
       PROCEDURE :: rdinp => pfe_rdinp
       PROCEDURE :: PartFunc
       PROCEDURE :: NSVolume 
+      PROCEDURE :: NSPartinit
+      PROCEDURE :: NSPartition 
   END TYPE PFE
 
   CONTAINS
@@ -143,6 +145,58 @@ MODULE MODPFE
     CLOSE(20)
 
   END SUBROUTINE NSVolume
+  
+  
+  ! Initialize parameters for the NSPartition (Emax and Emin differ from PFE method)
+  SUBROUTINE NSPartinit(self,System,MCrun,Parfu,kBT)
+    CLASS(PFE) :: self, Parfu
+    TYPE(LJ) :: System
+    TYPE(MC) :: MCrun
+    REAL*8 :: kBT
+
+    self%nsamples = Parfu%nsamples 
+    self%nsteps   = Parfu%nsteps
+    self%stepsize = Parfu%stepsize
+    self%fractiom = Parfu%fractiom
+    self%Eroot    = Parfu%Eroot
+
+    CALL MCrun%Minimize(System) 
+    CALL System%calcenergy()
+    self%Emin = System%Energy
+    self%Emax = self%Emin + kBT*0.01
+
+  END SUBROUTINE        
+
+
+  ! Calculate the partition function via the nested sampling (need NSVolume)
+  SUBROUTINE NSPartition(self,System,beta)
+    CLASS(PFE) :: self
+    TYPE(LJ) :: System
+    INTEGER :: i
+    REAL*8 :: beta
+    REAL*8 :: energy, Eshift
+    REAL*8 :: summation
+ 
+    ! integration
+    summation = 0.d0
+    Eshift = MINVAL(self%levels)
+    self%levels = self%levels - Eshift
+    DO i = 1, self%nlevel-1
+      energy = 0.5d0*(self%levels(i)+self%levels(i+1))
+      summation = summation + EXP(-beta*energy)*(self%volumes(i)-self%volumes(i+1))
+    END DO  
+
+    ! lnZ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV)) 
+    self%lnZ = 3*System%natoms*LOG(System%L) - beta*Eshift + LOG(summation)
+
+    ! output
+    OPEN(UNIT=20,FILE="Levels2.dat",STATUS="UNKNOWN")
+    DO i=1,self%nlevel
+      WRITE(20,*) self%levels(i)*cal2joule, self%volumes(i)
+    END DO
+    CLOSE(20)
+    
+  END SUBROUTINE NSPartition
   
   
   ! Relax the system to energy lower than threshold

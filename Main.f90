@@ -8,7 +8,7 @@ PROGRAM Main
 
   TYPE(LJ) :: System
   TYPE(MC) :: MCeq, MCrun
-  TYPE(PFE) :: Parfu
+  TYPE(PFE) :: Parfu, Parfu2
   INTEGER :: i, j, k
   REAL*8 :: temperature, beta, kBT
   REAL*8 :: cutoff
@@ -94,10 +94,17 @@ PROGRAM Main
 
   ! RAFEP
   CALL Parfu%PartFunc(System,MCrun%Energy,beta)
-  print *, "RAFEP ln(Zest):", Parfu%lnZ
-  
+  print *, "RAFEP ln(Zest) = ", Parfu%lnZ
+
   ! For 2 atoms debug
   IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu%lnZ))
+
+  ! NS for partition function (Emin determined by MC relaxation)
+  CALL Parfu2%NSPartinit(System,MCrun,Parfu,kBT)
+  CALL Parfu2%NSVolume(System)
+  CALL Parfu2%NSPartition(System,beta)
+  print *, "NS ln(Znum) = ", Parfu2%lnZ 
+  IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu2%lnZ))
 
 END PROGRAM Main
 
