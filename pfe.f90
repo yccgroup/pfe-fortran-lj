@@ -47,8 +47,8 @@ MODULE MODPFE
     outdim = SIZE(Energy)
     self%Emax = MAXVAL(Energy)
     self%Emin = MINVAL(Energy)
-    print *, "DEBUG Emin =", self%Emin
-    print *, "DEBUG Emax =", self%Emax
+    print *, "Emin =", self%Emin
+    print *, "Emax =", self%Emax
 
     ! calculate the relative volume by the nested sampling 
     CALL self%NSVolume(System)
@@ -135,7 +135,7 @@ MODULE MODPFE
       ! interpolate to find target relative volume at Emax
       self%volume = INTERPOLATE(self%levels,self%volumes,self%nlevel,self%Emax)
     END IF
-    PRINT *, "DEBUG volume = ", self%volume
+    PRINT *, "volume = ", self%volume
 
     ! Ouput levels (unit: kj/mol)
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")

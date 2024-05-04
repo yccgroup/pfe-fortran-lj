@@ -11,7 +11,7 @@ PROGRAM Main
   TYPE(PFE) :: Parfu, Parfu2
   INTEGER :: i, j, k
   REAL*8 :: temperature, beta, kBT
-  REAL*8 :: cutoff
+  REAL*8 :: cutoff, lambda_th, prefactor
 
   ! Read inputs from file input.dat
   OPEN(UNIT=10,FILE="input.dat",STATUS="OLD",ACTION="READ")
@@ -51,6 +51,9 @@ PROGRAM Main
   beta = 1.d0/kBT
   MCeq%outdim = MCeq%nsteps/MCeq%outfreq
   MCrun%outdim = MCrun%nsteps/MCrun%outfreq
+  lambda_th = (h/SQRT(2*pi*(System%mass*amu2kg)*(kBT*1000*cal2joule/NA))) * 1E10
+  prefactor = -LOG(Gamma((System%natoms+1)*1d0)) - 3*System%natoms*LOG(lambda_th)
+  PRINT *, "lambda_th:", lambda_th
 
   ! Build LJ system and calculate the system energy
   CALL System%init()
@@ -92,19 +95,28 @@ PROGRAM Main
   PRINT *, "Average energy after truncation (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
   PRINT*, "cutoff = ", cutoff
 
+  ! Partition Function for Natoms = 1
+  IF (System%natoms == 1) THEN
+    Parfu%lnZ = 3*LOG(System%L) + prefactor
+    PRINT *, "ln(Z) = ", Parfu%lnZ
+    STOP
+  END IF
+
+  ! Partition Function for Natoms /= 1
   ! RAFEP
   CALL Parfu%PartFunc(System,MCrun%Energy,beta)
-  print *, "RAFEP ln(Zest) = ", Parfu%lnZ
+  Parfu%lnZ = Parfu%lnZ + prefactor
+  PRINT *, "RAFEP ln(Zest) = ", Parfu%lnZ, 3*System%natoms*LOG(lambda_th), 3*System%natoms*LOG(System%L) 
 
-  ! For 2 atoms debug
-  IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu%lnZ))
-
-  ! NS for partition function (Emin determined by MC relaxation)
+  ! NS (Emin determined by MC relaxation)
   CALL Parfu2%NSPartinit(System,MCrun,Parfu,kBT)
   CALL Parfu2%NSVolume(System)
   CALL Parfu2%NSPartition(System,beta)
-  print *, "NS ln(Znum) = ", Parfu2%lnZ 
-  IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu2%lnZ))
+  Parfu2%lnZ = Parfu2%lnZ + prefactor
+  PRINT *, "NS ln(Znum) = ", Parfu2%lnZ
+
+  ! DEBUG for Natoms == 2 only
+  IF (System%natoms == 2) CALL DEBUG(System,beta,EXP(Parfu%lnZ),prefactor)
 
 END PROGRAM Main
 

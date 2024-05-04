@@ -1,5 +1,5 @@
-300                    # temperature (K)
-100                    # System natoms
+120                    # temperature (K)
+2                      # System natoms
 39.9                   # System mass (openmm: 39.9 amu) 
 0.238                  # System epsilon (openmm: 0.238 kcal/mol)
 3.4                    # System sigma (openmm: 3.4 angstrom)       
