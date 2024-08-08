@@ -3,18 +3,17 @@
 39.9                   # System mass (openmm: 39.9 amu) 
 0.238                  # System epsilon (openmm: 0.238 kcal/mol)
 3.4                    # System sigma (openmm: 3.4 angstrom)       
-42.8373157             # System boxsize in angstrom (particle density 0.05 in reduced unit) 
+25.0                   # System boxsize in angstrom (particle density 0.05 in reduced unit is 42.8373157 angstrom for 100 particles) 
 10.2                   # System LJ cutoff (openmm: 3*sigma)
-10000                  # MCeq nsteps
-3.0                    # MCeq stepsize
+50000                  # MCeq nsteps
+1.0                    # MCeq stepsize
 1000                   # MCeq output frequency
-1000000                # MC nsteps
-3.0                    # MC stepsize
-10                     # MC output frequency
-4                      # rafep outlier cutoff
-1000                   # NS nsamples
-5000                   # NS nsteps
+1000000                # MC nsteps (1000000)
+1.0                    # MC stepsize
+1000                   # MC output frequency
+200                    # NS nsamples (1000)
+2000                   # NS nsteps (5000)
 0.5                    # NS stepsize
-0.99                   # NS fraction (next volume's ratio to the current one)
+0.9                    # NS fraction (ratio between next energy and current energy)
 1e12                   # NS root energy (starting point, full configuration space)
-
+PFE                    # Methods for calculating the partition (Exact / PFE)
