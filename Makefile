@@ -2,8 +2,8 @@
 FC = gfortran
 
 # compile flags
-#FCFLAGS = -g -c -O2
-FCFLAGS = -g -c -O -Wall -fcheck=all -ffpe-trap=invalid,zero,overflow
+FCFLAGS = -g -c -O2
+#FCFLAGS = -g -c -O -Wall -fcheck=all -ffpe-trap=invalid,zero,overflow
 
 # link flags
 FLFLAGS =
