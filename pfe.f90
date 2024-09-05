@@ -9,7 +9,7 @@ MODULE MODPFE
   TYPE PFE
     INTEGER :: nsamples, nsteps, nlevel
     REAL*8  :: stepsize, fract, percentage
-    REAL*8  :: Estar, Eroot, Err2
+    REAL*8  :: Estar, Eroot, Err2, VErr2
     REAL*8  :: lnZ, volume
     REAL*8, ALLOCATABLE  :: levels(:), volumes(:)
     CHARACTER(LEN=10) :: Method
@@ -134,6 +134,7 @@ MODULE MODPFE
     nsteps = self%nsteps
     stepsize = self%stepsize
     nrelaxsteps = 0
+    self%VErr2 = 0
 
     ! determine niter (number of iterations required to reach Estar = self%nlevel)
     niter = 0
@@ -195,6 +196,7 @@ MODULE MODPFE
         END IF
       END DO
       
+
       ! data for performance statistics
       WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
 
@@ -202,7 +204,12 @@ MODULE MODPFE
       volume = volume * (1.d0*ninliers/nsamples)
       self%levels(iterid) = Elevel
       self%volumes(iterid) = volume
-  
+
+      ! calculate the cummulated error VErr2
+      IF (ninliers /= 0) THEN
+        self%VErr2 = self%VErr2 + (1.d0/ninliers - 1.d0/nsamples)
+      END IF
+
     END DO
 
     CLOSE(10)
@@ -214,7 +221,7 @@ MODULE MODPFE
       ! interpolate to find the relative volume under Estar
       self%volume = INTERPOLATE(self%levels,self%volumes,niter,Estar)
     END IF
-    PRINT *, "volume = ", self%volume
+    PRINT *, "volume = ", self%volume, "err = ", SQRT(self%VErr2)
 
     ! Ouput levels (unit: kj/mol)
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")

@@ -123,10 +123,10 @@ PROGRAM Main
     CALL Parfu%PartFunc(System,MCrun%Energy,beta)
     lnQ = Parfu%lnZ
     lnZ = lnQ + lnZp
-    PRINT *, "NS lnQ = ", lnQ
-    PRINT *, "NS lnZp = ", lnZp
-    PRINT *, "NS lnZ = ", lnZ
-    PRINT *, "NS Err = ", SQRT(Parfu%Err2)
+    PRINT *, "PFE lnQ = ", lnQ
+    PRINT *, "PFE lnZp = ", lnZp
+    PRINT *, "PFE lnZ = ", lnZ
+    PRINT *, "PFE Err VErr Err+VErr = ", SQRT(Parfu%Err2), SQRT(Parfu%VErr2), SQRT(Parfu%Err2+Parfu%VErr2)
     PRINT *, "Estar = ", Parfu%Estar
     PRINT *, "Cutoff % = ", Parfu%percentage*100
 
