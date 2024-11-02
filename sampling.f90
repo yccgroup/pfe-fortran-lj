@@ -220,7 +220,7 @@ MODULE MODMC
     TYPE(LJ),INTENT(IN) :: System
     REAL*8,INTENT(IN) :: beta
     CHARACTER(LEN=*),INTENT(IN) :: filename
-    INTEGER :: fd, i
+    INTEGER :: fd
     INTEGER :: natoms, nsteps, outfreq, outdim
     REAL*8  :: mass, epsilom, sigma, L, rc, mybeta, stepsize
 
