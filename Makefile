@@ -2,7 +2,7 @@
 FC = gfortran
 
 # compile flags
-FCFLAGS = -g -c -O2
+FCFLAGS = -g -c -O3 -march=native
 #FCFLAGS = -g -c -O -Wall -fcheck=all -ffpe-trap=invalid,zero,overflow
 
 # link flags
@@ -13,10 +13,9 @@ SRCS = const.f90 utilities.f90 LJparticles.f90 sampling.f90 pfe.f90 debug.f90 Ma
 OBJS = $(patsubst %.f90, %.o, $(SRCS))
 
 # program name
-PROGRAM = rafep
+PROGRAM = pfe
 
-all:
-	make rafep
+all: pfe
 
 $(PROGRAM): $(OBJS)
 	$(FC) $(FLFLAGS) -o $@ $+
@@ -25,5 +24,5 @@ $(PROGRAM): $(OBJS)
 	$(FC) $(FCFLAGS) -o $@ $<
 
 clean:
-	rm -f *.o *.mod rafep
+	rm -f *.o *.mod pfe
 
