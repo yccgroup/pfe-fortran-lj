@@ -119,10 +119,6 @@ PROGRAM Main
       STOP
     END IF
   
-    ! Seed the random number, again
-    ! (for debugging, will be removed later)
-    CALL SET_RANDOM_SEED(seed)
-
     ! Partition Function for Natoms /= 1
     IF (Parfu%Method == "Exact") THEN
       
