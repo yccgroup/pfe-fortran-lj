@@ -15,6 +15,8 @@ MODULE MODMC
       PROCEDURE :: Sampling
       PROCEDURE :: Truncate
       PROCEDURE :: Minimize
+      PROCEDURE :: Write
+      PROCEDURE :: Read
   END TYPE MC 
 
   CONTAINS
@@ -32,6 +34,9 @@ MODULE MODMC
     READ(fd,*) self%nsteps
     READ(fd,*) self%stepsize
     READ(fd,*) self%outfreq
+    ! calculate derived parameters
+    self%outdim = self%nsteps / self%outfreq
+
   END SUBROUTINE mc_rdinp
 
   ! Monte Carlo Sampling
@@ -181,4 +186,94 @@ MODULE MODMC
   
   END SUBROUTINE Minimize
   
+
+  ! Write out the Sampling data
+  SUBROUTINE Write(self,System,beta,filename)
+    CLASS(MC) :: self
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: beta
+    CHARACTER(LEN=*),INTENT(IN) :: filename
+    INTEGER :: fd
+
+    OPEN(FILE=filename, NEWUNIT=fd, ACTION='write', FORM='unformatted', STATUS='unknown', ERR=500)
+    WRITE(UNIT=fd, ERR=510) System%natoms, System%mass, System%epsilom, System%sigma, System%L, System%rc, beta
+    WRITE(UNIT=fd, ERR=510) self%nsteps, self%outfreq, self%stepsize, self%Accept
+    WRITE(UNIT=fd, ERR=510) self%Traj
+    WRITE(UNIT=fd, ERR=510) self%Energy
+    CLOSE(UNIT=fd)
+    RETURN
+
+    500 CONTINUE
+    PRINT *, 'ERROR: could not open file ', filename
+    STOP 1
+
+    510 CONTINUE
+    PRINT *, 'ERROR: could not write to file ', filename
+    STOP 1
+
+  END SUBROUTINE Write
+
+
+  ! Read in the Sampling data
+  SUBROUTINE Read(self,System,beta,filename)
+    CLASS(MC) :: self
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: beta
+    CHARACTER(LEN=*),INTENT(IN) :: filename
+    INTEGER :: fd, i
+    INTEGER :: natoms, nsteps, outfreq, outdim
+    REAL*8  :: mass, epsilom, sigma, L, rc, mybeta, stepsize
+
+    OPEN(FILE=filename, NEWUNIT=fd, ACTION='read', FORM='unformatted', STATUS='old', ERR=600)
+    ! read and check System parameters
+    READ(UNIT=fd, ERR=610) natoms, mass, epsilom, sigma, L, rc, mybeta
+    IF (natoms /= System%natoms) CALL COMPLAIN('System natoms')
+    IF (mass /= System%mass) CALL COMPLAIN('System mass')
+    IF (epsilom /= System%epsilom) CALL COMPLAIN('System epsilon')
+    IF (sigma /= System%sigma) CALL COMPLAIN('System sigma')
+    IF (L /= System%L) CALL COMPLAIN('System boxsize')
+    IF (rc /= System%rc) CALL COMPLAIN('System LJ cutoff')
+    IF (mybeta /= beta) CALL COMPLAIN('temperature')
+    ! read and check MC parameters
+    READ(UNIT=fd, ERR=610) nsteps, outfreq, stepsize, self%Accept
+    IF (outfreq /= self%outfreq) CALL WARN('MC output frequency')
+    IF (stepsize /= self%stepsize) CALL WARN('MC stepsize')
+    outdim = nsteps / outfreq
+    IF (outdim < self%outdim) THEN
+      PRINT *, 'ERROR: trajectory in ', filename, ' only has ', outdim, ' samples, but you want ', self%outdim
+      STOP 1
+    ELSE IF (outdim > self%outdim) THEN
+      PRINT *, 'INFO: reading only ', self%outdim, ' samples from the ', outdim, ' in ', filename
+    END IF
+    ! read in the trajectory -- note, partial reads of records is ok in Fortran
+    ALLOCATE(self%Traj(3,natoms,self%outdim))
+    ALLOCATE(self%Energy(self%outdim))
+    READ(UNIT=fd, ERR=610) self%Traj
+    READ(UNIT=fd, ERR=610) self%Energy
+    CLOSE(UNIT=fd)
+    RETURN
+
+    600 CONTINUE
+    PRINT *, 'ERROR: could not open file ', filename
+    STOP 1
+
+    610 CONTINUE
+    PRINT *, 'ERROR: could not read from file ', filename
+    STOP 1
+
+  CONTAINS
+
+    SUBROUTINE COMPLAIN(what)
+      CHARACTER(LEN=*) :: what
+      PRINT *, 'ERROR: parameter "', what, '" differs between input and ', filename
+      STOP 1
+    END SUBROUTINE COMPLAIN
+
+    SUBROUTINE WARN(what)
+      CHARACTER(LEN=*) :: what
+      PRINT *, 'WARNING: parameter "', what, '" differs between input and ', filename
+    END SUBROUTINE WARN
+
+  END SUBROUTINE Read
+
 END MODULE MODMC

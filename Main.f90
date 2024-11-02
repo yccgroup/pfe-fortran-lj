@@ -13,6 +13,8 @@ PROGRAM Main
   REAL*8 :: temperature, beta, kBT 
   REAL*8 :: lambda_th, lnZ, lnQ, lnZp
   REAL*8, Parameter :: dE=0.01
+  CHARACTER(LEN=80) :: MCfilename
+  CHARACTER(LEN=10) :: Job
 
   ! Read inputs from file input.dat
   OPEN(UNIT=10,FILE="input.dat",STATUS="OLD",ACTION="READ")
@@ -32,8 +34,14 @@ PROGRAM Main
   ! production run MC parameters
   CALL MCrun%rdinp(10)
 
+  ! filename for MC data
+  READ(10,*) MCfilename
+
   ! pfe parameters
   CALL Parfu%rdinp(10)
+
+  ! job type
+  READ(10,*) Job
 
   CLOSE(10)
 
@@ -50,8 +58,6 @@ PROGRAM Main
   ! Initialize parameters
   kBT = kB*temperature
   beta = 1.d0/kBT
-  MCeq%outdim = MCeq%nsteps/MCeq%outfreq
-  MCrun%outdim = MCrun%nsteps/MCrun%outfreq
   lambda_th = (h/SQRT(2*pi*(System%mass*amu2kg)*(kBT*1000*cal2joule/NA))) * 1E10
   lnZp = -LOG_GAMMA((System%natoms+1)*1d0) - 3*System%natoms*LOG(lambda_th)
   PRINT *, "lambda_th:", lambda_th
@@ -60,88 +66,102 @@ PROGRAM Main
   CALL System%init()
   CALL System%calcenergy()
 
-  PRINT *, "Letitia: begin MD"
-  FLUSH(6)
+  IF (Job == 'MC') THEN
 
-  ! Pre-equilibration
-  CALL MCeq%Sampling(System,beta)
+    PRINT *, "Letitia: begin MD"
+    FLUSH(6)
 
-  ! Monte Carlo Sampling
-  CALL MCrun%Sampling(System,beta)
-  
-  ! Output MC Trajectory
-  OPEN(UNIT=20,FILE="Traj.dat",STATUS="UNKNOWN")
-  DO i=1,MCrun%outdim
-    WRITE(20,*) "Time = ", i*MCrun%outfreq
-    DO j=1,System%natoms
-      WRITE(20,*) (MCrun%Traj(k,j,i), k=1,3)
+    ! Pre-equilibration
+    CALL MCeq%Sampling(System,beta)
+
+    ! Monte Carlo Sampling
+    CALL MCrun%Sampling(System,beta)
+    
+    ! Save MC data
+    CALL MCrun%Write(System,beta,TRIM(MCfilename))
+
+    ! Output MC Trajectory
+    OPEN(UNIT=20,FILE="Traj.dat",STATUS="UNKNOWN")
+    DO i=1,MCrun%outdim
+      WRITE(20,*) "Time = ", i*MCrun%outfreq
+      DO j=1,System%natoms
+        WRITE(20,*) (MCrun%Traj(k,j,i), k=1,3)
+      END DO
     END DO
-  END DO
-  CLOSE(20)
+    CLOSE(20)
 
-  ! Ouput MC Energy (unit: kj/mol)
-  OPEN(UNIT=20,FILE="Energy.dat",STATUS="UNKNOWN")
-  DO i=1,MCrun%outdim
-    WRITE(20,*) MCrun%Energy(i)*cal2joule
-  END DO
-  CLOSE(20)
+    ! Ouput MC Energy (unit: kj/mol)
+    OPEN(UNIT=20,FILE="Energy.dat",STATUS="UNKNOWN")
+    DO i=1,MCrun%outdim
+      WRITE(20,*) MCrun%Energy(i)*cal2joule
+    END DO
+    CLOSE(20)
+    
+    ! Output MC Statistics (unit: kj/mol)
+    PRINT *, "Acceptance rate =", MCrun%Accept
+    PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
+
+
+  ELSE ! Job /= MC
+
+    Parfu%Method = Job
+
+    ! Read MC data
+    CALL MCrun%Read(System,beta,TRIM(MCfilename))
+
+    ! Partition Function for Natoms = 1
+    IF (System%natoms == 1) THEN
+      lnQ = 3*LOG(System%L) 
+      lnZ = lnQ + lnZp 
+      PRINT *, "lnQ = ", lnQ
+      PRINT *, "lnZp = ", lnZp
+      PRINT *, "lnZ = ", lnZ
+      STOP
+    END IF
   
-  ! Output MC Statistics (unit: kj/mol)
-  PRINT *, "Acceptance rate =", MCrun%Accept
-  PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
+    ! Seed the random number, again
+    ! (for debugging, will be removed later)
+    CALL SET_RANDOM_SEED(seed)
 
-  ! Partition Function for Natoms = 1
-  IF (System%natoms == 1) THEN
-    lnQ = 3*LOG(System%L) 
-    lnZ = lnQ + lnZp 
-    PRINT *, "lnQ = ", lnQ
-    PRINT *, "lnZp = ", lnZp
-    PRINT *, "lnZ = ", lnZ
-    STOP
-  END IF
+    ! Partition Function for Natoms /= 1
+    IF (Parfu%Method == "Exact") THEN
+      
+      ! Calculate partition function by Nested Sampling (Time consuming)
+      PRINT *, "Letitia: calculate partition function via NS"
+      FLUSH(6)
+      ! Determine Estar and Emin for Exact method
+      CALL MCrun%Minimize(System) 
+      CALL System%calcenergy()
+      Parfu%Estar = System%Energy + kBT*0.1
+      CALL Parfu%NSVolume(System,System%Energy)
+      CALL Parfu%NSPartition(System,beta)
+      lnQ = Parfu%lnZ
+      lnZ = lnQ + lnZp
+      PRINT *, "NS lnQ = ", lnQ
+      PRINT *, "NS lnZp = ", lnZp
+      PRINT *, "NS lnZ = ", lnZ
+  
+    ELSE IF (Parfu%Method == "PFE") THEN
+      
+      ! Calculate partition function by PFE (our theory)
+      PRINT *, "Letitia: calculate partition function via PFE"
+      FLUSH(6)
+      CALL Parfu%PartFunc(System,MCrun%Energy,beta)
+      lnQ = Parfu%lnZ
+      lnZ = lnQ + lnZp
+      PRINT *, "PFE lnQ = ", lnQ
+      PRINT *, "PFE lnZp = ", lnZp
+      PRINT *, "PFE lnZ = ", lnZ
+      PRINT *, "PFE Err VErr Err+VErr = ", SQRT(Parfu%Err2), SQRT(Parfu%VErr2), SQRT(Parfu%Err2+Parfu%VErr2)
+      PRINT *, "Estar = ", Parfu%Estar
+      PRINT *, "Cutoff % = ", Parfu%percentage*100
+  
+      ! DEBUG for Natoms == 2 only
+      IF (System%natoms == 2) CALL DEBUG(System,beta,lnZp)
+      
+    END IF ! Method
 
-  ! Seed the random number, again
-  ! (for debugging, will be removed later)
-  CALL SET_RANDOM_SEED(seed)
-
-  ! Partition Function for Natoms /= 1
-  IF (Parfu%Method == "Exact") THEN
-    
-    ! Calculate partition function by Nested Sampling (Time consuming)
-    PRINT *, "Letitia: calculate partition function via NS"
-    FLUSH(6)
-    ! Determine Estar and Emin for Exact method
-    CALL MCrun%Minimize(System) 
-    CALL System%calcenergy()
-    Parfu%Estar = System%Energy + kBT*0.1
-    CALL Parfu%NSVolume(System,System%Energy)
-    CALL Parfu%NSPartition(System,beta)
-    lnQ = Parfu%lnZ
-    lnZ = lnQ + lnZp
-    PRINT *, "NS lnQ = ", lnQ
-    PRINT *, "NS lnZp = ", lnZp
-    PRINT *, "NS lnZ = ", lnZ
-
-  ELSE IF (Parfu%Method == "PFE") THEN
-    
-    ! Calculate partition function by PFE (our theory)
-    PRINT *, "Letitia: calculate partition function via PFE"
-    FLUSH(6)
-    CALL Parfu%PartFunc(System,MCrun%Energy,beta)
-    lnQ = Parfu%lnZ
-    lnZ = lnQ + lnZp
-    PRINT *, "PFE lnQ = ", lnQ
-    PRINT *, "PFE lnZp = ", lnZp
-    PRINT *, "PFE lnZ = ", lnZ
-    PRINT *, "PFE Err VErr Err+VErr = ", SQRT(Parfu%Err2), SQRT(Parfu%VErr2), SQRT(Parfu%Err2+Parfu%VErr2)
-    PRINT *, "Estar = ", Parfu%Estar
-    PRINT *, "Cutoff % = ", Parfu%percentage*100
-
-    ! DEBUG for Natoms == 2 only
-    IF (System%natoms == 2) CALL DEBUG(System,beta,lnZp)
-    
-  END IF
-
+  END IF ! Job
 
 END PROGRAM Main
 

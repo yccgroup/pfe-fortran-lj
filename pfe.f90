@@ -32,7 +32,6 @@ MODULE MODPFE
     READ(fd,*) self%stepsize
     READ(fd,*) self%fract
     READ(fd,*) self%Eroot
-    READ(fd,*) self%Method
   END SUBROUTINE pfe_rdinp
 
   ! Calculate the partition function via Partition Function Estimator under PBC
