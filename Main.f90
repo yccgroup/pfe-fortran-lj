@@ -50,7 +50,7 @@ PROGRAM Main
   MCeq%outdim = MCeq%nsteps/MCeq%outfreq
   MCrun%outdim = MCrun%nsteps/MCrun%outfreq
   lambda_th = (h/SQRT(2*pi*(System%mass*amu2kg)*(kBT*1000*cal2joule/NA))) * 1E10
-  lnZp = -LOG(Gamma((System%natoms+1)*1d0)) - 3*System%natoms*LOG(lambda_th)
+  lnZp = -LOG_GAMMA((System%natoms+1)*1d0) - 3*System%natoms*LOG(lambda_th)
   PRINT *, "lambda_th:", lambda_th
 
   ! Build LJ system and calculate the system energy
