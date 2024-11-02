@@ -4,6 +4,22 @@ MODULE MODUTIL
 
   CONTAINS
 
+  ! Set the seed for random numbers. 0 for random.
+  SUBROUTINE SET_RANDOM_SEED(seed)
+    INTEGER, INTENT(IN) :: seed
+    INTEGER, ALLOCATABLE :: seedbuf(:)
+    INTEGER :: n
+
+    IF (SEED == 0) THEN
+      CALL RANDOM_SEED()
+    ELSE
+      CALL RANDOM_SEED(SIZE=n)
+      ALLOCATE(seedbuf(n))
+      seedbuf(:) = seed
+      CALL RANDOM_SEED(PUT=seedbuf)
+    END IF
+  END SUBROUTINE SET_RANDOM_SEED
+
   ! Randomly select an atom from the system
   FUNCTION RANDOM_INTEGER(natoms) RESULT(aid)
     IMPLICIT NONE

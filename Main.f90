@@ -9,7 +9,7 @@ PROGRAM Main
   TYPE(LJ) :: System
   TYPE(MC) :: MCeq, MCrun
   TYPE(PFE) :: Parfu
-  INTEGER :: i, j, k
+  INTEGER :: i, j, k, seed
   REAL*8 :: temperature, beta, kBT 
   REAL*8 :: lambda_th, lnZ, lnQ, lnZp
   REAL*8, Parameter :: dE=0.01
@@ -23,6 +23,9 @@ PROGRAM Main
   ! system parameters
   CALL System%rdinp(10)
 
+  ! random seed
+  READ(10,*) seed
+
   ! equilibrium MC parameters
   CALL MCeq%rdinp(10)
 
@@ -35,7 +38,7 @@ PROGRAM Main
   CLOSE(10)
 
   ! Seed the random number
-  CALL RANDOM_SEED()
+  CALL SET_RANDOM_SEED(seed)
 
   ! Check input parameters
   IF (System%rc > 0.5d0*System%L) THEN

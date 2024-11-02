@@ -5,6 +5,7 @@
 3.4                    # System sigma (openmm: 3.4 angstrom)       
 25.0                   # System boxsize in angstrom (particle density 0.05 in reduced unit is 42.8373157 angstrom for 100 particles) 
 10.2                   # System LJ cutoff (openmm: 3*sigma)
+0                      # fixed random seed, 0 for random
 50000                  # MCeq nsteps
 1.0                    # MCeq stepsize
 1000                   # MCeq output frequency
