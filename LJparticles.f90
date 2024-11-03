@@ -16,6 +16,7 @@ MODULE MODLJ
       PROCEDURE :: calcr2
       PROCEDURE :: calcpairpot
       PROCEDURE :: calcenergy
+      PROCEDURE :: partenergy
       PROCEDURE :: move
       !PROCEDURE :: partition_function_integral
       !PROCEDURE :: volume_integral 
@@ -124,6 +125,20 @@ MODULE MODLJ
       self%uptodate = .TRUE.
     END SUBROUTINE calcenergy
 
+    ! calculate the potential energy contribution from atom aid
+    FUNCTION partenergy(self,aid) RESULT(myenergy)
+      CLASS(LJ) :: self
+      INTEGER,INTENT(IN) :: aid
+      REAL*8 :: myenergy, r2
+      INTEGER :: i
+
+      myenergy = 0.d0
+      DO i = 1, self%natoms
+        IF (i == aid) CYCLE
+        r2 = self%calcr2(i,aid)
+        myenergy = myenergy + self%calcpairpot(r2)
+      END DO
+    END FUNCTION partenergy
 
     ! move particles (3D)    
     SUBROUTINE move(self,aid,stepsize)
@@ -132,8 +147,11 @@ MODULE MODLJ
       REAL*8,INTENT(IN) :: stepsize
       INTEGER :: i
       REAL*8 :: Xold(3), Xnew(3), rand(3), step(3)
+      REAL*8 :: partEold, partEnew
 
       Xold = self%XYZ(:,aid)
+      partEold = self%partenergy(aid)
+
       CALL RANDOM_NUMBER(rand)
       step = 2 * (rand - 0.5d0) * stepsize
       Xnew = Xold + step
@@ -147,9 +165,13 @@ MODULE MODLJ
         END IF
       END DO
 
-      ! assign the final coordinate for output
+      ! assign the final coordinate
       self%XYZ(:,aid) = Xnew
-      self%uptodate = .FALSE.
+
+      ! update the system energy
+      partEnew = self%partenergy(aid)
+      self%energy = self%energy + (partEnew - partEold)
+      self%uptodate = .TRUE.
 
     END SUBROUTINE move
     
