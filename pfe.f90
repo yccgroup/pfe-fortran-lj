@@ -75,7 +75,6 @@ MODULE MODPFE
       Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
       Err2 = (Avg2/Avg**2-1)/ndim
       difference = ABS(Estar-Estar_prev)
-      
 
       ! For next iteration
       Estar_prev = Estar
@@ -166,16 +165,17 @@ MODULE MODPFE
     ! ouput for NS performance statistics
     OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN") 
 
-    iterid = 0
     Elevel = Eroot
     volume = 1.d0
 
     ! calculate the relative volume iteratively
-    DO WHILE (Elevel > Estar)
+    DO iterid = 1, niter
+
       Elevel = (Elevel - Emin) * fract + Emin
+      ! fix the lowest level to Estar (avoid interpolation)
+      IF (Elevel <= Estar)  Elevel = Estar
   
       ! data for performance statistics
-      iterid = iterid + 1
       noutliers = 0
       ninliers = 0
       tnrelaxsteps = 0
@@ -192,7 +192,6 @@ MODULE MODPFE
            tnrelaxsteps = tnrelaxsteps + nrelaxsteps
         END IF
       END DO
-      
 
       ! data for performance statistics
       WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
@@ -211,13 +210,7 @@ MODULE MODPFE
 
     CLOSE(10)
 
-    IF (Estar == 0.d0) THEN
-      ! Estar = 0.d0 is a discontinuity in accessible volume space. It cannot be treated using linear interpolation.
-      self%volume = self%volumes(niter-1)
-    ELSE
-      ! interpolate to find the relative volume under Estar
-      self%volume = INTERPOLATE(self%levels,self%volumes,niter,Estar)
-    END IF
+    self%volume = self%volumes(niter)
     PRINT *, "volume = ", self%volume, "err = ", SQRT(self%VErr2)
 
     ! Ouput levels (unit: kj/mol)

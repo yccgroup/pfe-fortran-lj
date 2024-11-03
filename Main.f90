@@ -148,7 +148,7 @@ PROGRAM Main
       PRINT *, "PFE lnZp = ", lnZp
       PRINT *, "PFE lnZ = ", lnZ
       PRINT *, "PFE Err VErr Err+VErr = ", SQRT(Parfu%Err2), SQRT(Parfu%VErr2), SQRT(Parfu%Err2+Parfu%VErr2)
-      PRINT *, "Estar = ", Parfu%Estar
+      PRINT *, "Estar = ", Parfu%Estar*cal2joule, "kJ/mol"
       PRINT *, "Cutoff % = ", Parfu%percentage*100
   
       ! DEBUG for Natoms == 2 only
