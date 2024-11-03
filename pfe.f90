@@ -10,8 +10,8 @@ MODULE MODPFE
     INTEGER :: nsamples, nsteps, nlevel
     REAL*8  :: stepsize, fract, percentage
     REAL*8  :: Estar, Eroot, Err2, VErr2
-    REAL*8  :: lnZ, volume
-    REAL*8, ALLOCATABLE  :: levels(:), volumes(:)
+    REAL*8  :: lnZ, logVolume
+    REAL*8, ALLOCATABLE  :: levels(:), logVolumes(:)
     CHARACTER(LEN=10) :: Method
     CONTAINS
       PROCEDURE :: rdinp => pfe_rdinp
@@ -106,7 +106,7 @@ MODULE MODPFE
     CALL self%NSVolume(System,Emin)
   
     ! calculate the partition function (Omega = L**3N * volume)
-    LogOmega = 3*System%natoms*LOG(System%L) + LOG(self%volume) 
+    LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
     self%lnZ = LogOmega - LOG(Avg) - beta*Emax
 
     !! DEALLOCATE 
@@ -123,7 +123,7 @@ MODULE MODPFE
     INTEGER :: niter, nsamples, nsteps 
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
     REAL*8 :: Emin, Estar, Eroot, fract, Elevel
-    REAL*8 :: stepsize, volume
+    REAL*8 :: stepsize, logVolume
     
     ! initialization
     Estar = self%Estar
@@ -146,7 +146,7 @@ MODULE MODPFE
     self%nlevel = niter
     
     ! allocate arrays
-    ALLOCATE(self%levels(niter),self%volumes(niter))
+    ALLOCATE(self%levels(niter),self%logVolumes(niter))
     ALLOCATE(Samples(nsamples))
   
     ! initialization
@@ -168,9 +168,9 @@ MODULE MODPFE
 
     iterid = 0
     Elevel = Eroot
-    volume = 1.d0
+    logVolume = 0.d0
 
-    ! calculate the relative volume iteratively
+    ! calculate the log of the relative volume iteratively
     DO WHILE (Elevel > Estar)
       Elevel = (Elevel - Emin) * fract + Emin
   
@@ -192,15 +192,14 @@ MODULE MODPFE
            tnrelaxsteps = tnrelaxsteps + nrelaxsteps
         END IF
       END DO
-      
 
       ! data for performance statistics
       WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
 
       ! calculate the current relative volume and save it
-      volume = volume * (1.d0*ninliers/nsamples)
+      logVolume = logVolume + LOG(1.d0*ninliers/nsamples)
       self%levels(iterid) = Elevel
-      self%volumes(iterid) = volume
+      self%logVolumes(iterid) = logVolume
 
       ! calculate the cummulated error VErr2
       IF (ninliers /= 0) THEN
@@ -213,17 +212,17 @@ MODULE MODPFE
 
     IF (Estar == 0.d0) THEN
       ! Estar = 0.d0 is a discontinuity in accessible volume space. It cannot be treated using linear interpolation.
-      self%volume = self%volumes(niter-1)
+      self%logVolume = self%logVolumes(niter-1)
     ELSE
       ! interpolate to find the relative volume under Estar
-      self%volume = INTERPOLATE(self%levels,self%volumes,niter,Estar)
+      self%logVolume = INTERPOLATE(self%levels,self%logVolumes,niter,Estar)
     END IF
-    PRINT *, "volume = ", self%volume, "err = ", SQRT(self%VErr2)
+    PRINT *, "logVolume = ", self%logVolume, "volume = ", EXP(self%logVolume), "err = ", SQRT(self%VErr2)
 
     ! Ouput levels (unit: kj/mol)
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
     DO i = 1, niter
-      WRITE(20,*) self%levels(i)*cal2joule, self%volumes(i)
+      WRITE(20,*) self%levels(i)*cal2joule, self%logVolumes(i), EXP(self%logVolumes(i))
     END DO
     CLOSE(20)
 
@@ -245,7 +244,7 @@ MODULE MODPFE
     self%levels = self%levels - Emin
     DO i = 1, self%nlevel-1
       energy = 0.5d0*(self%levels(i)+self%levels(i+1))
-      summation = summation + EXP(-beta*energy)*(self%volumes(i)-self%volumes(i+1))
+      summation = summation + EXP(-beta*energy)*(EXP(self%logVolumes(i))-EXP(self%logVolumes(i+1)))
     END DO  
 
     ! lnZ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV)) 
