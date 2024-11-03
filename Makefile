@@ -2,7 +2,7 @@
 FC = gfortran
 
 # compile flags
-FCFLAGS = -g -c -O3 -march=native
+FCFLAGS = -g -c -O3 -Wall -march=native
 #FCFLAGS = -g -c -O -Wall -fcheck=all -ffpe-trap=invalid,zero,overflow
 
 # link flags

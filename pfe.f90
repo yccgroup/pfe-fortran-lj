@@ -157,8 +157,7 @@ MODULE MODPFE
   
     ! to start, make sure all points are within the root energy
     DO i = 1, nsamples
-      CALL Samples(i)%calcenergy()
-      IF (Samples(i)%energy > Eroot) THEN
+      IF (Samples(i)%getenergy() > Eroot) THEN
         CALL relax(Samples(i), Eroot, stepsize, nrelaxsteps)
         CALL propagate(Samples(i), Eroot, nsteps, stepsize)
       END IF
@@ -183,8 +182,7 @@ MODULE MODPFE
 
       ! push the samples outside to the area under Elevel, count ninsider
       DO i = 1, nsamples
-        CALL Samples(i)%calcenergy()
-        IF (Samples(i)%energy <= Elevel) THEN
+        IF (Samples(i)%getenergy() <= Elevel) THEN
            ninliers = ninliers + 1
         ELSE
            CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps)
@@ -265,14 +263,12 @@ MODULE MODPFE
   
     nrelaxsteps = 0
     coords = 0.d0
-    CALL System%calcenergy()
-    E1 = System%energy
+    E1 = System%getenergy()
     DO WHILE (E1 > threshold)
       aid = RANDOM_INTEGER(System%natoms)
       coords(:) = System%XYZ(:,aid) 
-      CALL System%move(System%XYZ(:,aid),stepsize)
-      CALL System%calcenergy()
-      E2 = System%energy
+      CALL System%move(aid,stepsize)
+      E2 = System%getenergy()
       IF (E2 > E1) THEN
         ! reject the move if energy gets higher
         System%XYZ(:,aid) = coords(:)
@@ -295,14 +291,12 @@ MODULE MODPFE
     REAL*8 :: coords(3)
   
     coords = 0.d0
-    CALL System%calcenergy()
-    E1 =System%energy
+    E1 = System%getenergy()
     DO i = 1, nsteps
       aid = RANDOM_INTEGER(System%natoms)
       coords(:) = System%XYZ(:,aid)
-      CALL System%move(System%XYZ(:,aid),stepsize)
-      CALL System%calcenergy()
-      E2 = System%energy
+      CALL System%move(aid,stepsize)
+      E2 = System%getenergy()
       IF (E2 > threshold) THEN
         ! reject the move, restore the coordinates
         System%XYZ(:,aid) = coords(:)

@@ -62,13 +62,12 @@ MODULE MODMC
 
       ! back up energy and coordinates
       Xold = System%XYZ(:,aid)
-      Eold = System%energy
+      Eold = System%getenergy()
     
       ! move the selected atom and calculate the new energy
-      CALL System%move(System%XYZ(:,aid),self%stepsize)
-      CALL System%calcenergy()
+      CALL System%move(aid,self%stepsize)
       Xnew = System%XYZ(:,aid)
-      Enew = System%energy
+      Enew = System%getenergy()
     
       ! Metropolis (Xnew, Enew updated)
       CALL Metropolis(Xold,Eold,Xnew,Enew,acount,beta)
@@ -166,14 +165,12 @@ MODULE MODMC
     REAL*8 :: coords(3)
   
     coords = 0.d0
-    CALL System%calcenergy()
-    E1 = System%energy
+    E1 = System%getenergy()
     DO i = 1, self%nsteps
       aid = RANDOM_INTEGER(System%natoms)
       coords(:) = System%XYZ(:,aid) 
-      CALL System%move(System%XYZ(:,aid),self%stepsize)
-      CALL System%calcenergy()
-      E2 = System%energy
+      CALL System%move(aid,self%stepsize)
+      E2 = System%getenergy()
       IF (E2 > E1) THEN
         ! reject the move if energy gets higher
         System%XYZ(:,aid) = coords(:)

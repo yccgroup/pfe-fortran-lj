@@ -7,10 +7,12 @@ MODULE MODLJ
       REAL*8  :: mass, epsilom, sigma
       REAL*8  :: L, rc, rc2, Ec, energy 
       REAL*8, ALLOCATABLE :: XYZ(:,:)
+      LOGICAL :: uptodate ! whether energy needs updating after move
     CONTAINS
       PROCEDURE :: rdinp => lj_rdinp
       PROCEDURE :: init => lj_init
       PROCEDURE :: genXYZ
+      PROCEDURE :: getenergy
       PROCEDURE :: calcr2
       PROCEDURE :: calcpairpot
       PROCEDURE :: calcenergy
@@ -46,6 +48,7 @@ MODULE MODLJ
 
       ALLOCATE(self%XYZ(3,self%natoms))
       CALL self%genXYZ()
+      self%uptodate = .FALSE.
     END SUBROUTINE lj_init
 
     ! initialize the LJ particles' coordinates
@@ -55,6 +58,14 @@ MODULE MODLJ
       CALL RANDOM_NUMBER(self%XYZ)
       self%XYZ = self%XYZ * self%L
     END SUBROUTINE genXYZ
+
+    ! return the energy
+    FUNCTION getenergy(self) RESULT(energy)
+      CLASS(LJ) :: self
+      REAL*8 :: energy
+      IF (.NOT. self%uptodate) CALL self%calcenergy()
+      energy = self%energy
+    END FUNCTION getenergy
 
     ! calculate r2 between particle i and j
     FUNCTION calcr2(self,i,j) RESULT(r2)
@@ -110,31 +121,35 @@ MODULE MODLJ
           self%energy = self%energy + self%calcpairpot(r2)
         END DO
       END DO
+      self%uptodate = .TRUE.
     END SUBROUTINE calcenergy
 
 
     ! move particles (3D)    
-    SUBROUTINE move(self,x,stepsize) 
+    SUBROUTINE move(self,aid,stepsize)
       CLASS(LJ) :: self
+      INTEGER,INTENT(IN) :: aid
+      REAL*8,INTENT(IN) :: stepsize
       INTEGER :: i
-      REAL*8 :: stepsize
-      REAL*8 :: x(3), pos(3), rand(3), step(3)
+      REAL*8 :: Xold(3), Xnew(3), rand(3), step(3)
 
+      Xold = self%XYZ(:,aid)
       CALL RANDOM_NUMBER(rand)
       step = 2 * (rand - 0.5d0) * stepsize
-      pos = x + step
+      Xnew = Xold + step
 
       ! place the particle back to the box if it runs out
       DO i = 1, 3
-        IF (pos(i) > self%L) THEN
-          pos(i) = pos(i) - self%L
-        ELSE IF (pos(i) < 0) THEN
-          pos(i) = pos(i) + self%L
+        IF (Xnew(i) > self%L) THEN
+          Xnew(i) = Xnew(i) - self%L
+        ELSE IF (Xnew(i) < 0) THEN
+          Xnew(i) = Xnew(i) + self%L
         END IF
       END DO
 
       ! assign the final coordinate for output
-      x = pos
+      self%XYZ(:,aid) = Xnew
+      self%uptodate = .FALSE.
 
     END SUBROUTINE move
     

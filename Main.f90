@@ -64,7 +64,6 @@ PROGRAM Main
 
   ! Build LJ system and calculate the system energy
   CALL System%init()
-  CALL System%calcenergy()
 
   IF (Job == 'MC') THEN
 
