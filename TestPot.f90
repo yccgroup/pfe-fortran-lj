@@ -58,7 +58,7 @@ PROGRAM TestPot
 
   ! read the DCD frame by frame, and output energies
   WRITE(6,*)
-  WRITE(6,"(a8,4(a20,'     '))") '# Step', 'My_Energy', 'OpenMM_Energy', 'Delta', 'Ratio'
+  WRITE(6,"(a8,4(a20,'     '))") '# Frame', 'My_Energy', 'OpenMM_Energy', 'Delta', 'Ratio'
   DO i = 1, dcd%nset
     CALL dcd%read_frame(xyz)
     ! copy coordinates into system
