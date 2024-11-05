@@ -16,6 +16,7 @@ MODULE MODPFE
     CONTAINS
       PROCEDURE :: rdinp => pfe_rdinp
       PROCEDURE :: PartFunc
+      PROCEDURE :: PartFunc2
       PROCEDURE :: NSVolume
       PROCEDURE :: NSPartition
   END TYPE PFE
@@ -162,6 +163,7 @@ MODULE MODPFE
         Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
         Err2 = (Avg2/Avg**2-1)/ndim
         diffstar = ABS(Estar-Estar_prev)
+        PRINT *, 'DEBUG PartFunc2: Estar = ',Estar,' Err2 = ',Err2
 
         ! For next iteration
         Estar_prev = Estar
@@ -185,6 +187,7 @@ MODULE MODPFE
         Edagg = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
         Err2 = (Avg2/Avg**2-1)/ndim
         diffdagg = ABS(Edagg-Edagg_prev)
+        PRINT *, 'DEBUG PartFunc2: Edagg = ',Edagg,' Err2 = ',Err2
 
         ! For next iteration
         Edagg_prev = Edagg
@@ -192,6 +195,11 @@ MODULE MODPFE
 
       ! Update total difference
       totaldiff  = SQRT(diffstar**2 + diffdagg**2)
+
+      ! TODO: At this point, totaldiff will be <= sqrt(2)*1E-6,
+      ! so the outer loop will terminate after one cycle.
+      ! Should we recalculate diffstar because Edagg has changed?
+
     END DO
 
     ! Sanity Check
@@ -199,7 +207,7 @@ MODULE MODPFE
       PRINT *, "Estar:", Estar
       PRINT *, "Edagg:", Edagg
       PRINT *, "Edagg >= Estar!  Error occured! Program stops!"
-      STOP
+      STOP 1
     END IF
 
     ! Assign Estar and Edagg
