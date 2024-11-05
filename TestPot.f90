@@ -22,7 +22,7 @@ PROGRAM TestPot
   REAL*8,ALLOCATABLE :: energies(:)
   INTEGER :: log_istrt, log_nsavc
   INTEGER :: i
-  REAL*8 :: myenergy
+  REAL*8 :: myenergy, r2
 
   ! get command-line arguments
   CALL GET_COMMAND_ARGUMENT(1, dcdfilename)
@@ -58,7 +58,11 @@ PROGRAM TestPot
 
   ! read the DCD frame by frame, and output energies
   WRITE(6,*)
-  WRITE(6,"(a8,4(a20,'     '))") '# Frame', 'My_Energy', 'OpenMM_Energy', 'Delta', 'Ratio'
+  IF (dcd%natom == 2) THEN
+    WRITE(6,"(a8,5(a20,'     '))") '# Frame', 'My_Energy', 'OpenMM_Energy', 'Delta', 'Ratio','r'
+  ELSE
+    WRITE(6,"(a8,4(a20,'     '))") '# Frame', 'My_Energy', 'OpenMM_Energy', 'Delta', 'Ratio'
+  END IF
   DO i = 1, dcd%nset
     CALL dcd%read_frame(xyz)
     ! copy coordinates into system
@@ -66,7 +70,12 @@ PROGRAM TestPot
     system%uptodate = .FALSE.
     ! calculate energy, and fix unit
     myenergy = system%getenergy() * cal2joule
-    WRITE(6,'(i8,4g25.15)') i, myenergy, energies(i), myenergy-energies(i), myenergy/energies(i)
+    IF (dcd%natom == 2) THEN
+      r2 = system%calcr2(1,2)
+      WRITE(6,'(i8,5g25.15)') i, myenergy, energies(i), myenergy-energies(i), myenergy/energies(i), DSQRT(r2)
+    ELSE
+      WRITE(6,'(i8,4g25.15)') i, myenergy, energies(i), myenergy-energies(i), myenergy/energies(i)
+    END IF
   END DO
 
   ! clean up
