@@ -263,21 +263,19 @@ MODULE MODPFE
     DO WHILE (Elevel > Estar)
       ! introduce Emin to ensure the threshold is correctly scaled
       Elevel = (Elevel - Emin) * fract + Emin
+      IF (Elevel < Estar)  Elevel = Estar
       nstar = nstar + 1
     END DO
-    Elevel = Estar
-    nstar = nstar + 1
 
-    ! determine ndagg (number of iterations required to reach Edagg)
+    ! determine ndagg (number of extra iterations required to reach Edagg)
     ndagg = 0
     IF (flag) THEN
       DO WHILE (Elevel > Edagg)
         ! introduce Emin to ensure the threshold is correctly scaled
         Elevel = (Elevel - Emin) * fract + Emin
+        IF (Elevel < Edagg)  Elevel = Edagg
         ndagg = ndagg + 1
       END DO
-      Elevel = Edagg
-      ndagg = ndagg + 1
     END IF
 
     ! assign the number of iteration to self%nlevel
