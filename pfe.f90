@@ -2,7 +2,7 @@
 MODULE MODPFE
     USE MODCONST
     USE MODLJ
-    USE MODMC 
+    USE MODMC
     USE MODUTIL
   IMPLICIT NONE
 
@@ -16,8 +16,8 @@ MODULE MODPFE
     CONTAINS
       PROCEDURE :: rdinp => pfe_rdinp
       PROCEDURE :: PartFunc
-      PROCEDURE :: NSVolume 
-      PROCEDURE :: NSPartition 
+      PROCEDURE :: NSVolume
+      PROCEDURE :: NSPartition
   END TYPE PFE
 
   CONTAINS
@@ -40,7 +40,7 @@ MODULE MODPFE
     TYPE(LJ) :: System
     INTEGER :: i
     INTEGER :: ndim
-    REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, difference 
+    REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, difference
     REAL*8 :: Avg, Avg2, Err2, LogOmega
     REAL*8 :: Energy(:)
     REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
@@ -62,7 +62,7 @@ MODULE MODPFE
       ! Generate the Heaviside function
       Heaviside(:) = 1.d0
       DO i = 1, ndim
-        IF (Energy(i) > Estar) THEN 
+        IF (Energy(i) > Estar) THEN
           Heaviside(i) = 0.d0
         END IF
       END DO
@@ -94,7 +94,7 @@ MODULE MODPFE
         Heaviside(i) = 0.d0
         self%percentage = self%percentage + 1
       END IF
-    END DO 
+    END DO
     Avg = SUM(Func*Heaviside)/ndim
     Avg2= SUM(Func2*Heaviside)/ndim
     Err2= (Avg2/Avg**2 -1)/ndim
@@ -103,16 +103,16 @@ MODULE MODPFE
 
     ! calculate the volume by the nested sampling
     CALL self%NSVolume(System,Emin,.FALSE.)
-  
+
     ! calculate the partition function (Omega = L**3N * volume)
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
     self%lnZ = LogOmega - LOG(Avg) - beta*Emax
 
-    !! DEALLOCATE 
+    !! DEALLOCATE
     !DEALLOCATE(Work(ndim),Heaviside(ndim),Func(ndim),Func2(ndim))
   END SUBROUTINE PartFunc
-  
-  
+
+
   ! Calculate the partition function via Partition Function Estimator (both side cutoff)
   SUBROUTINE PartFunc2(self,System,Energy,beta)
     CLASS(PFE) :: self
@@ -149,7 +149,7 @@ MODULE MODPFE
         ! Generate the Heaviside function
         Heaviside(:) = 1.d0
         DO i = 1, ndim
-          IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN 
+          IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
             Heaviside(i) = 0.d0
           END IF
         END DO
@@ -172,7 +172,7 @@ MODULE MODPFE
         ! Generate the Heaviside function
         Heaviside(:) = 1.d0
         DO i = 1, ndim
-          IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN 
+          IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
             Heaviside(i) = 0.d0
           END IF
         END DO
@@ -214,7 +214,7 @@ MODULE MODPFE
         Heaviside(i) = 0.d0
         self%percentage = self%percentage + 1
       END IF
-    END DO 
+    END DO
     Avg = SUM(Func*Heaviside)/ndim
     Avg2= SUM(Func2*Heaviside)/ndim
     Err2= (Avg2/Avg**2 -1)/ndim
@@ -223,28 +223,28 @@ MODULE MODPFE
 
     ! calculate the volume by the nested sampling
     CALL self%NSVolume(System,Emin,.TRUE.)
-  
+
     ! calculate the partition function (Omega = L**3N * volume)
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
     self%lnZ = LogOmega - LOG(Avg) - beta*Emax
 
-    !! DEALLOCATE 
+    !! DEALLOCATE
     !DEALLOCATE(Work(ndim),Heaviside(ndim),Func(ndim),Func2(ndim))
   END SUBROUTINE PartFunc2
-  
-  
+
+
   ! Calculate the volume ratio via the nested sampling
   SUBROUTINE NSVolume(self,System,Emin,flag)
     CLASS(PFE) :: self
     TYPE(LJ) :: System
     TYPE(LJ), ALLOCATABLE :: Samples(:)
     INTEGER :: i
-    INTEGER :: ndagg, nstar, niter, nsamples, nsteps 
+    INTEGER :: ndagg, nstar, niter, nsamples, nsteps
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
     REAL*8 :: Emin, Edagg, Estar, Eroot, fract, Elevel
     REAL*8 :: stepsize, logVolume, VErr2
     LOGICAL:: flag ! .True. for both end cutting
-    
+
     ! initialization
     Edagg = self%Edagg
     Estar = self%Estar
@@ -281,18 +281,18 @@ MODULE MODPFE
     ! assign the number of iteration to self%nlevel
     niter = nstar + ndagg
     self%nlevel = niter
-    
+
 
     ! allocate arrays
     ALLOCATE(self%levels(niter),self%logVolumes(niter))
     ALLOCATE(Samples(nsamples))
-  
+
     ! initialization
     DO i = 1, nsamples
       Samples(i) = System
       CALL Samples(i)%genXYZ()
     END DO
-  
+
     ! to start, make sure all points are within the root energy
     DO i = 1, nsamples
       IF (Samples(i)%getenergy() > Eroot) THEN
@@ -300,9 +300,9 @@ MODULE MODPFE
         CALL propagate(Samples(i), Eroot, nsteps, stepsize)
       END IF
     END DO
-  
+
     ! ouput for NS performance statistics
-    OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN") 
+    OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
 
     Elevel = Eroot
     logVolume = 0.d0
@@ -314,7 +314,7 @@ MODULE MODPFE
       ! fix the level to Edagg or Estar to avoid interpolation
       IF (iterid == niter)  Elevel = Edagg
       IF (iterid == nstar)  Elevel = Estar
-  
+
       ! data for performance statistics
       noutliers = 0
       ninliers = 0
@@ -346,7 +346,7 @@ MODULE MODPFE
         VErr2 = VErr2 + (1.d0/ninliers - 1.d0/nsamples)
       END IF
 
-      ! update when iterid == nstar 
+      ! update when iterid == nstar
       IF (iterid == nstar) THEN
         self%logVstar = logVolume
         self%VErr2 = self%VErr2 + VErr2
@@ -378,8 +378,8 @@ MODULE MODPFE
     CLOSE(20)
 
   END SUBROUTINE NSVolume
-  
-  
+
+
   ! Calculate the partition function via nested sampling (use NSVolume routine)
   SUBROUTINE NSPartition(self,System,beta)
     CLASS(PFE) :: self
@@ -388,7 +388,7 @@ MODULE MODPFE
     REAL*8 :: beta
     REAL*8 :: energy, Emin
     REAL*8 :: summation
- 
+
     ! integration
     summation = 0.d0
     Emin = MINVAL(self%levels)
@@ -396,27 +396,27 @@ MODULE MODPFE
     DO i = 1, self%nlevel-1
       energy = 0.5d0*(self%levels(i)+self%levels(i+1))
       summation = summation + EXP(-beta*energy)*(EXP(self%logVolumes(i))-EXP(self%logVolumes(i+1)))
-    END DO  
+    END DO
 
-    ! lnZ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV)) 
+    ! lnZ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV))
     self%lnZ = 3*System%natoms*LOG(System%L) - beta*Emin + LOG(summation)
 
   END SUBROUTINE NSPartition
-  
-  
+
+
   ! Relax the system to energy lower than threshold
   SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps)
     TYPE(LJ) System
     INTEGER :: aid, nrelaxsteps
     REAL*8 :: threshold, stepsize, E1, E2
     REAL*8 :: coords(3)
-  
+
     nrelaxsteps = 0
     coords = 0.d0
     E1 = System%getenergy()
     DO WHILE (E1 > threshold)
       aid = RANDOM_INTEGER(System%natoms)
-      coords(:) = System%XYZ(:,aid) 
+      coords(:) = System%XYZ(:,aid)
       CALL System%move(aid,stepsize)
       E2 = System%getenergy()
       IF (E2 > E1) THEN
@@ -429,9 +429,9 @@ MODULE MODPFE
       END IF
       nrelaxsteps = nrelaxsteps + 1
     END DO
-  
+
   END SUBROUTINE relax
-  
+
   ! Propagate the system while maintaining the energy under the threshold
   SUBROUTINE propagate(System, threshold, nsteps, stepsize)
     TYPE(LJ) System
@@ -439,7 +439,7 @@ MODULE MODPFE
     INTEGER :: aid, nsteps
     REAL*8 :: threshold, stepsize, E1, E2
     REAL*8 :: coords(3)
-  
+
     coords = 0.d0
     E1 = System%getenergy()
     DO i = 1, nsteps
@@ -456,7 +456,7 @@ MODULE MODPFE
         E1 = E2
       END IF
     END DO
-  
+
   END SUBROUTINE propagate
 
 END MODULE MODPFE
