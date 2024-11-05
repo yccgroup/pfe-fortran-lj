@@ -282,7 +282,6 @@ MODULE MODPFE
     niter = nstar + ndagg
     self%nlevel = niter
 
-
     ! allocate arrays
     ALLOCATE(self%levels(niter),self%logVolumes(niter))
     ALLOCATE(Samples(nsamples))
@@ -320,7 +319,7 @@ MODULE MODPFE
       ninliers = 0
       tnrelaxsteps = 0
 
-      ! push the samples outside to the area under Elevel, count ninsider
+      ! push the samples outside to the area under Elevel, count inliers
       DO i = 1, nsamples
         IF (Samples(i)%getenergy() <= Elevel) THEN
            ninliers = ninliers + 1
@@ -336,15 +335,19 @@ MODULE MODPFE
       ! data for performance statistics
       WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
 
+      ! abort if no inliers (volume becomes zero)
+      IF (ninliers == 0) THEN
+        PRINT *, 'NSVolume: volume=0 after ',iterid,' iterations -- increase frac?'
+        STOP 1
+      END IF
+
       ! calculate the current relative volume and save it
       logVolume = logVolume + LOG(1.d0*ninliers/nsamples)
       self%levels(iterid) = Elevel
       self%logVolumes(iterid) = logVolume
 
-      ! calculate the cummulated error VErr2
-      IF (ninliers /= 0) THEN
-        VErr2 = VErr2 + (1.d0/ninliers - 1.d0/nsamples)
-      END IF
+      ! calculate the cumulated error VErr2
+      VErr2 = VErr2 + (1.d0/ninliers - 1.d0/nsamples)
 
       ! update when iterid == nstar
       IF (iterid == nstar) THEN
@@ -353,24 +356,26 @@ MODULE MODPFE
       END IF
 
     END DO
+
     ! update when iterid == niter
     IF (flag) THEN
       self%logVdagg = logVolume
-      self%VErr2 = self%VErr2 + VErr2
+      self%VErr2 = self%VErr2 + VErr2 ! not sure about this...
     END IF
 
     CLOSE(10)
 
 
     IF (flag) THEN
-      self%logVolume = self%logVstar - self%logVdagg
+      ! Volume = Vstar - Vdagg
+      self%logVolume = LOG(EXP(self%logVstar) - EXP(self%logVdagg))
     ELSE
       self%logVolume = self%logVstar
     END IF
 
     PRINT *, "logVolume = ", self%logVolume, "volume = ", EXP(self%logVolume), "err = ", SQRT(self%VErr2)
 
-    ! Ouput levels (unit: kj/mol)
+    ! Output levels (unit: kj/mol)
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
     DO i = 1, niter
       WRITE(20,*) self%levels(i)*cal2joule, self%logVolumes(i), EXP(self%logVolumes(i))
