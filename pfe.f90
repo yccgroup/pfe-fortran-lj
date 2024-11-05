@@ -189,6 +189,14 @@ MODULE MODPFE
         diffdagg = ABS(Edagg-Edagg_prev)
         PRINT *, 'DEBUG PartFunc2: Edagg = ',Edagg,' Err2 = ',Err2
 
+        ! Sanity Check
+        IF (Edagg >= Estar) THEN
+          PRINT *, "Estar:", Estar
+          PRINT *, "Edagg:", Edagg
+          PRINT *, "Edagg >= Estar!  Error occured! Program stops!"
+          STOP 1
+        END IF
+
         ! For next iteration
         Edagg_prev = Edagg
       END DO
@@ -201,14 +209,6 @@ MODULE MODPFE
       ! Should we recalculate diffstar because Edagg has changed?
 
     END DO
-
-    ! Sanity Check
-    IF (Edagg >= Estar) THEN
-      PRINT *, "Estar:", Estar
-      PRINT *, "Edagg:", Edagg
-      PRINT *, "Edagg >= Estar!  Error occured! Program stops!"
-      STOP 1
-    END IF
 
     ! Assign Estar and Edagg
     self%Estar = Estar
