@@ -128,7 +128,7 @@ PROGRAM Main
       CALL MCrun%Minimize(System) 
       CALL System%calcenergy()
       Parfu%Estar = System%Energy + kBT*0.1
-      CALL Parfu%NSVolume(System,System%Energy)
+      CALL Parfu%NSVolume(System,System%Energy,.FALSE.)
       CALL Parfu%NSPartition(System,beta)
       lnQ = Parfu%lnZ
       lnZ = lnQ + lnZp
