@@ -141,7 +141,8 @@ PROGRAM Main
       ! Calculate partition function by PFE (our theory)
       PRINT *, "Letitia: calculate partition function via PFE"
       FLUSH(6)
-      CALL Parfu%PartFunc(System,MCrun%Energy,beta)
+      !CALL Parfu%PartFunc(System,MCrun%Energy,beta)
+      CALL Parfu%PartFunc2(System,MCrun%Energy,beta)
       lnQ = Parfu%lnZ
       lnZ = lnQ + lnZp
       PRINT *, "PFE lnQ = ", lnQ
