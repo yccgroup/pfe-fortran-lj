@@ -6,10 +6,10 @@ MODULE MODDEBUG
 
   CONTAINS
 
-  SUBROUTINE DEBUG(System,beta,lnZp)
+  SUBROUTINE DEBUG(System,beta,lnP)
     INTEGER :: i
     INTEGER :: ndim
-    REAL*8 :: beta, lnZp
+    REAL*8 :: beta, lnP
     REAL*8 :: Z, Eavg
     REAL*8 :: r, dr, pot, prob, integral
     CLASS(LJ) :: System
@@ -33,7 +33,7 @@ MODULE MODDEBUG
     END DO
     Z = System%L**3 * (integral + System%L**3 - 4*pi/3.d0 * System%rc**3)
     Eavg = System%L**3 * Eavg / Z
-    PRINT *, "DEBUG lnZ = ", LOG(Z)+lnZp
+    PRINT *, "DEBUG lnZ = ", LOG(Z)+lnP
   
   END SUBROUTINE DEBUG
 

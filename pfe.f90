@@ -9,8 +9,9 @@ MODULE MODPFE
   TYPE PFE
     INTEGER :: nsamples, nsteps, nlevel
     REAL*8  :: stepsize, fract, percentage
-    REAL*8  :: Edagg, Estar, Eroot, Err2, VErr2
-    REAL*8  :: lnZ, logVolume, logVstar, logVdagg
+    REAL*8  :: Edagg, Estar, Err2, Avg, Avg2 
+    REAL*8  :: Eroot, VErr2
+    REAL*8  :: lnQ, logVolume, logVstar, logVdagg
     REAL*8, ALLOCATABLE  :: levels(:), logVolumes(:)
     CHARACTER(LEN=10) :: Method
     CONTAINS
@@ -36,19 +37,18 @@ MODULE MODPFE
   END SUBROUTINE pfe_rdinp
 
   ! Calculate the partition function via Partition Function Estimator under PBC
-  SUBROUTINE PartFunc(self,System,Energy,beta)
+  SUBROUTINE PartFunc(self,System,Energy,beta,edim)
     CLASS(PFE) :: self
     TYPE(LJ) :: System
     INTEGER :: i
-    INTEGER :: ndim
+    INTEGER :: edim
     REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, difference
     REAL*8 :: Avg, Avg2, Err2, LogOmega
     REAL*8 :: Energy(:)
     REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
 
     ! Initialization
-    ndim = SIZE(Energy)
-    ALLOCATE(Work(ndim),Heaviside(ndim),Func(ndim),Func2(ndim))
+    ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
     Func(:) = EXP(beta*(Energy-Emax))
@@ -62,19 +62,19 @@ MODULE MODPFE
     DO WHILE (difference > 1E-6)
       ! Generate the Heaviside function
       Heaviside(:) = 1.d0
-      DO i = 1, ndim
+      DO i = 1, edim
         IF (Energy(i) > Estar) THEN
           Heaviside(i) = 0.d0
         END IF
       END DO
 
       ! Calculate Avg and Avg2 (Energy shifted)
-      Avg = SUM(Func*Heaviside)/ndim
-      Avg2= SUM(Func2*Heaviside)/ndim
+      Avg = SUM(Func*Heaviside)/edim
+      Avg2= SUM(Func2*Heaviside)/edim
 
       ! Update E*, Err2, difference
       Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
-      Err2 = (Avg2/Avg**2-1)/ndim
+      Err2 = (Avg2/Avg**2-1)/edim
       difference = ABS(Estar-Estar_prev)
 
       ! For next iteration
@@ -90,16 +90,16 @@ MODULE MODPFE
     ! Recalculate Avg, Avg2, Err based on the final Estar, also calculate the cutoff percentage for statistics
     Heaviside(:) = 1.d0
     self%percentage = 0
-    DO i = 1, ndim
+    DO i = 1, edim
       IF (Energy(i) > Estar) THEN
         Heaviside(i) = 0.d0
         self%percentage = self%percentage + 1
       END IF
     END DO
-    Avg = SUM(Func*Heaviside)/ndim
-    Avg2= SUM(Func2*Heaviside)/ndim
-    Err2= (Avg2/Avg**2 -1)/ndim
-    self%percentage = self%percentage/ndim
+    Avg = SUM(Func*Heaviside)/edim
+    Avg2= SUM(Func2*Heaviside)/edim
+    Err2= (Avg2/Avg**2 -1)/edim
+    self%percentage = self%percentage/edim
     self%Err2 = Err2
 
     ! calculate the volume by the nested sampling
@@ -107,137 +107,235 @@ MODULE MODPFE
 
     ! calculate the partition function (Omega = L**3N * volume)
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
-    self%lnZ = LogOmega - LOG(Avg) - beta*Emax
+    self%lnQ = LogOmega - LOG(Avg) - beta*Emax
 
     !! DEALLOCATE
-    !DEALLOCATE(Work(ndim),Heaviside(ndim),Func(ndim),Func2(ndim))
+    !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
   END SUBROUTINE PartFunc
 
 
+! ! Calculate the partition function via Partition Function Estimator (both side cutoff)
+! SUBROUTINE PartFunc2(self,System,Energy,beta)
+!   CLASS(PFE) :: self
+!   TYPE(LJ) :: System
+!   INTEGER :: i
+!   INTEGER :: edim
+!   REAL*8 :: totaldiff, diffstar, diffdagg
+!   REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, Edagg_prev, Edagg
+!   REAL*8 :: Avg, Avg2, Err2, LogOmega
+!   REAL*8 :: Energy(:)
+!   REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
+
+!   ! Initialization
+!   edim = SIZE(Energy)
+!   ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
+!   Emax = MAXVAL(Energy)
+!   Emin = MINVAL(Energy)
+!   Func(:) = EXP(beta*(Energy-Emax))
+!   Func2(:) = EXP(2*beta*(Energy-Emax))
+
+!   Estar = Emax
+!   Estar_prev = Estar + 1
+!   Edagg = Emin
+!   Edagg_prev = Edagg - 1
+!   diffstar = ABS(Estar - Estar_prev)
+!   diffdagg = ABS(Edagg - Edagg_prev)
+!   totaldiff  = SQRT(diffstar**2 + diffdagg**2)
+
+!   ! Determine Estar and Edagger iteratively
+!   DO WHILE (totaldiff > 2E-6)
+
+!     ! Solve Estar iteratively
+!     DO WHILE (diffstar > 1E-6)
+!       ! Generate the Heaviside function
+!       Heaviside(:) = 1.d0
+!       DO i = 1, edim
+!         IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
+!           Heaviside(i) = 0.d0
+!         END IF
+!       END DO
+
+!       ! Calculate Avg and Avg2 (Energy shifted)
+!       Avg = SUM(Func*Heaviside)/edim
+!       Avg2= SUM(Func2*Heaviside)/edim
+
+!       ! Update E*, Err2, difference
+!       Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
+!       Err2 = (Avg2/Avg**2-1)/edim
+!       diffstar = ABS(Estar-Estar_prev)
+!       PRINT *, 'DEBUG PartFunc2: Estar = ',Estar,' Err2 = ',Err2
+
+!       ! For next iteration
+!       Estar_prev = Estar
+!     END DO
+
+!     ! Solve Edagg iteratively
+!     DO WHILE (diffdagg > 1E-6)
+!       ! Generate the Heaviside function
+!       Heaviside(:) = 1.d0
+!       DO i = 1, edim
+!         IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
+!           Heaviside(i) = 0.d0
+!         END IF
+!       END DO
+
+!       ! Calculate Avg and Avg2 (Energy shifted)
+!       Avg = SUM(Func*Heaviside)/edim
+!       Avg2= SUM(Func2*Heaviside)/edim
+
+!       ! Update E+, Err2, difference
+!       Edagg = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
+!       Err2 = (Avg2/Avg**2-1)/edim
+!       diffdagg = ABS(Edagg-Edagg_prev)
+!       PRINT *, 'DEBUG PartFunc2: Edagg = ',Edagg,' Err2 = ',Err2
+
+!       ! Sanity Check
+!       IF (Edagg >= Estar) THEN
+!         PRINT *, "Estar:", Estar
+!         PRINT *, "Edagg:", Edagg
+!         PRINT *, "Edagg >= Estar!  Error occured! Program stops!"
+!         STOP 1
+!       END IF
+
+!       ! For next iteration
+!       Edagg_prev = Edagg
+!     END DO
+
+!     ! Update total difference
+!     totaldiff  = SQRT(diffstar**2 + diffdagg**2)
+
+!     ! TODO: At this point, totaldiff will be <= sqrt(2)*1E-6,
+!     ! so the outer loop will terminate after one cycle.
+!     ! Should we recalculate diffstar because Edagg has changed?
+
+!   END DO
+
+!   ! Assign Estar and Edagg
+!   self%Estar = Estar
+!   self%Edagg = Edagg
+
+!   ! Recalculate Avg, Avg2, Err based on the final Estar, also calculate the cutoff percentage for statistics
+!   Heaviside(:) = 1.d0
+!   self%percentage = 0
+!   DO i = 1, edim
+!     IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
+!       Heaviside(i) = 0.d0
+!       self%percentage = self%percentage + 1
+!     END IF
+!   END DO
+!   Avg = SUM(Func*Heaviside)/edim
+!   Avg2= SUM(Func2*Heaviside)/edim
+!   Err2= (Avg2/Avg**2 -1)/edim
+!   self%percentage = self%percentage/edim
+!   self%Err2 = Err2
+
+!   ! calculate the volume by the nested sampling
+!   CALL self%NSVolume(System,Emin,.TRUE.)
+
+!   ! calculate the partition function (Omega = L**3N * volume)
+!   LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
+!   self%lnQ = LogOmega - LOG(Avg) - beta*Emax
+
+!   !! DEALLOCATE
+!   !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
+! END SUBROUTINE PartFunc2
+
+
   ! Calculate the partition function via Partition Function Estimator (both side cutoff)
-  SUBROUTINE PartFunc2(self,System,Energy,beta)
+  SUBROUTINE PartFunc2(self,System,Energy,beta,edim,nbin)
     CLASS(PFE) :: self
     TYPE(LJ) :: System
-    INTEGER :: i
-    INTEGER :: ndim
-    REAL*8 :: totaldiff, diffstar, diffdagg
-    REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, Edagg_prev, Edagg
-    REAL*8 :: Avg, Avg2, Err2, LogOmega
+    INTEGER :: i, j, k
+    INTEGER :: edim, nbin
+    REAL*8 :: beta, Emax, Emin, dE
+    REAL*8 :: Estar, Edagg
+    REAL*8 :: Avg, Avg2, Err2, Err2min, LogOmega
     REAL*8 :: Energy(:)
-    REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
+    REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:), Egrid(:)
 
     ! Initialization
-    ndim = SIZE(Energy)
-    ALLOCATE(Work(ndim),Heaviside(ndim),Func(ndim),Func2(ndim))
+    ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim),Egrid(nbin))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
     Func(:) = EXP(beta*(Energy-Emax))
     Func2(:) = EXP(2*beta*(Energy-Emax))
 
-    Estar = Emax
-    Estar_prev = Estar + 1
-    Edagg = Emin
-    Edagg_prev = Edagg - 1
-    diffstar = ABS(Estar - Estar_prev)
-    diffdagg = ABS(Edagg - Edagg_prev)
-    totaldiff  = SQRT(diffstar**2 + diffdagg**2)
+    ! Calculate the energy grid for the distribution histogram
+    dE = (Emax-Emin)/(nbin-1)
+    DO i = 1, nbin
+       Egrid(i) = Emin + (i-1)*dE
+    END DO
+    Egrid(1) = Emin      ! for numerical stability
+    Egrid(nbin) = Emax   ! for numerical stability
 
-    ! Determine Estar and Edagger iteratively
-    DO WHILE (totaldiff > 2E-6)
+    ! Calculate the initial guess for Err2min, use the absolute value for numerical stability
+    Avg = SUM(Func)/edim
+    Avg2= SUM(Func2)/edim
+    Err2min = ABS((Avg2/Avg**2-1)/edim)
 
-      ! Solve Estar iteratively
-      DO WHILE (diffstar > 1E-6)
-        ! Generate the Heaviside function
+    ! Find Estar and Edagg based on Egrid
+    DO i = 1, nbin
+
+      Estar = Egrid(nbin-i+1)
+
+      DO j = 1, nbin
+
+        Edagg = Egrid(j)
+        IF (Edagg >= Estar) EXIT
+
+        ! Calculate the averages and error
         Heaviside(:) = 1.d0
-        DO i = 1, ndim
-          IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
-            Heaviside(i) = 0.d0
+        DO k = 1, edim
+          IF ((Energy(k) < Edagg) .OR. (Energy(k) > Estar)) THEN
+            Heaviside(k) = 0.d0
           END IF
         END DO
+        
+        Avg = SUM(Func*Heaviside)/edim
+        Avg2= SUM(Func2*Heaviside)/edim
+        Err2 = ABS((Avg2/Avg**2-1)/edim)
 
-        ! Calculate Avg and Avg2 (Energy shifted)
-        Avg = SUM(Func*Heaviside)/ndim
-        Avg2= SUM(Func2*Heaviside)/ndim
-
-        ! Update E*, Err2, difference
-        Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
-        Err2 = (Avg2/Avg**2-1)/ndim
-        diffstar = ABS(Estar-Estar_prev)
-        PRINT *, 'DEBUG PartFunc2: Estar = ',Estar,' Err2 = ',Err2
-
-        ! For next iteration
-        Estar_prev = Estar
-      END DO
-
-      ! Solve Edagg iteratively
-      DO WHILE (diffdagg > 1E-6)
-        ! Generate the Heaviside function
-        Heaviside(:) = 1.d0
-        DO i = 1, ndim
-          IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
-            Heaviside(i) = 0.d0
-          END IF
-        END DO
-
-        ! Calculate Avg and Avg2 (Energy shifted)
-        Avg = SUM(Func*Heaviside)/ndim
-        Avg2= SUM(Func2*Heaviside)/ndim
-
-        ! Update E+, Err2, difference
-        Edagg = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
-        Err2 = (Avg2/Avg**2-1)/ndim
-        diffdagg = ABS(Edagg-Edagg_prev)
-        PRINT *, 'DEBUG PartFunc2: Edagg = ',Edagg,' Err2 = ',Err2
-
-        ! Sanity Check
-        IF (Edagg >= Estar) THEN
-          PRINT *, "Estar:", Estar
-          PRINT *, "Edagg:", Edagg
-          PRINT *, "Edagg >= Estar!  Error occured! Program stops!"
-          STOP 1
+        ! Update
+        IF (Err2 < Err2min) THEN
+          self%Estar = Estar
+          self%Edagg = Edagg
+          self%Err2 = Err2
+          self%Avg  = Avg
+          self%Avg2 = Avg2
+          Err2min = Err2
+          PRINT *, 'DEBUG PartFunc2: Estar = ', Estar, 'Edagg = ', Edagg, ' Err2 = ', Err2
         END IF
-
-        ! For next iteration
-        Edagg_prev = Edagg
+        
       END DO
-
-      ! Update total difference
-      totaldiff  = SQRT(diffstar**2 + diffdagg**2)
-
-      ! TODO: At this point, totaldiff will be <= sqrt(2)*1E-6,
-      ! so the outer loop will terminate after one cycle.
-      ! Should we recalculate diffstar because Edagg has changed?
-
     END DO
 
-    ! Assign Estar and Edagg
-    self%Estar = Estar
-    self%Edagg = Edagg
+    ! Reassign Estat and Edagg
+    Estar = self%Estar
+    Edagg = self%Edagg
 
-    ! Recalculate Avg, Avg2, Err based on the final Estar, also calculate the cutoff percentage for statistics
+    ! Calculate the cutoff percentage for statistics
     Heaviside(:) = 1.d0
     self%percentage = 0
-    DO i = 1, ndim
+    DO i = 1, edim
       IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
-        Heaviside(i) = 0.d0
         self%percentage = self%percentage + 1
       END IF
     END DO
-    Avg = SUM(Func*Heaviside)/ndim
-    Avg2= SUM(Func2*Heaviside)/ndim
-    Err2= (Avg2/Avg**2 -1)/ndim
-    self%percentage = self%percentage/ndim
-    self%Err2 = Err2
+    self%percentage = self%percentage/edim
 
     ! calculate the volume by the nested sampling
-    CALL self%NSVolume(System,Emin,.TRUE.)
+    IF (Edagg == Emin) THEN
+      CALL self%NSVolume(System,Emin,.FALSE.)
+    ELSE
+      CALL self%NSVolume(System,Emin,.TRUE.)
+    END IF
 
     ! calculate the partition function (Omega = L**3N * volume)
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
-    self%lnZ = LogOmega - LOG(Avg) - beta*Emax
+    self%lnQ = LogOmega - LOG(Avg) - beta*Emax
 
     !! DEALLOCATE
-    !DEALLOCATE(Work(ndim),Heaviside(ndim),Func(ndim),Func2(ndim))
+    !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
   END SUBROUTINE PartFunc2
 
 
@@ -263,7 +361,6 @@ MODULE MODPFE
     stepsize = self%stepsize
     nrelaxsteps = 0
     VErr2 = 0
-    self%VErr2 = 0
 
     ! determine nstar (number of iterations required to reach Estar)
     nstar = 0
@@ -317,6 +414,8 @@ MODULE MODPFE
     ! calculate the log of the relative volume iteratively
     DO iterid = 1, niter
 
+      PRINT *, 'DEBUG:  iterid', iterid, 'niter', niter
+
       Elevel = (Elevel - Emin) * fract + Emin
       ! fix the level to Edagg or Estar to avoid interpolation
       IF (iterid == niter)  Elevel = Edagg
@@ -360,7 +459,7 @@ MODULE MODPFE
       ! update when iterid == nstar
       IF (iterid == nstar) THEN
         self%logVstar = logVolume
-        self%VErr2 = self%VErr2 + VErr2
+        self%VErr2 = VErr2
       END IF
 
     END DO
@@ -368,7 +467,7 @@ MODULE MODPFE
     ! update when iterid == niter
     IF (flag) THEN
       self%logVdagg = logVolume
-      self%VErr2 = self%VErr2 + VErr2 ! not sure about this...
+      !self%VErr2 = self%VErr2 + VErr2 ! not sure about this...
     END IF
 
     CLOSE(10)
@@ -411,8 +510,8 @@ MODULE MODPFE
       summation = summation + EXP(-beta*energy)*(EXP(self%logVolumes(i))-EXP(self%logVolumes(i+1)))
     END DO
 
-    ! lnZ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV))
-    self%lnZ = 3*System%natoms*LOG(System%L) - beta*Emin + LOG(summation)
+    ! lnQ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV))
+    self%lnQ = 3*System%natoms*LOG(System%L) - beta*Emin + LOG(summation)
 
   END SUBROUTINE NSPartition
 
