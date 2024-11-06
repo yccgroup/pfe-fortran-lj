@@ -37,17 +37,18 @@ MODULE MODPFE
   END SUBROUTINE pfe_rdinp
 
   ! Calculate the partition function via Partition Function Estimator under PBC
-  SUBROUTINE PartFunc(self,System,Energy,beta,edim)
+  SUBROUTINE PartFunc(self,System,Energy,beta)
     CLASS(PFE) :: self
-    TYPE(LJ) :: System
-    INTEGER :: i
-    INTEGER :: edim
-    REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, difference
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: Energy(:)
+    REAL*8,INTENT(IN) :: beta
+    INTEGER :: i, edim
+    REAL*8 :: Emax, Emin, Estar_prev, Estar, difference
     REAL*8 :: Avg, Avg2, Err2, LogOmega
-    REAL*8 :: Energy(:)
     REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
 
     ! Initialization
+    edim = SIZE(Energy)
     ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
@@ -242,18 +243,20 @@ MODULE MODPFE
 
 
   ! Calculate the partition function via Partition Function Estimator (both side cutoff)
-  SUBROUTINE PartFunc2(self,System,Energy,beta,edim,nbin)
+  SUBROUTINE PartFunc2(self,System,Energy,beta,nbin)
     CLASS(PFE) :: self
-    TYPE(LJ) :: System
-    INTEGER :: i, j, k
-    INTEGER :: edim, nbin
-    REAL*8 :: beta, Emax, Emin, dE
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: Energy(:)
+    REAL*8,INTENT(IN) :: beta
+    INTEGER,INTENT(IN) :: nbin
+    INTEGER :: i, j, k, edim
+    REAL*8 :: Emax, Emin, dE
     REAL*8 :: Estar, Edagg
     REAL*8 :: Avg, Avg2, Err2, Err2min, LogOmega
-    REAL*8 :: Energy(:)
     REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:), Egrid(:)
 
     ! Initialization
+    edim = SIZE(Energy)
     ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim),Egrid(nbin))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
@@ -342,14 +345,15 @@ MODULE MODPFE
   ! Calculate the volume ratio via the nested sampling
   SUBROUTINE NSVolume(self,System,Emin,flag)
     CLASS(PFE) :: self
-    TYPE(LJ) :: System
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: Emin
+    LOGICAL,INTENT(IN) :: flag ! .True. for both end cutting
     TYPE(LJ), ALLOCATABLE :: Samples(:)
     INTEGER :: i
     INTEGER :: ndagg, nstar, niter, nsamples, nsteps
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
-    REAL*8 :: Emin, Edagg, Estar, Eroot, fract, Elevel
+    REAL*8 :: Edagg, Estar, Eroot, fract, Elevel
     REAL*8 :: stepsize, logVolume, VErr2
-    LOGICAL:: flag ! .True. for both end cutting
 
     ! initialization
     Edagg = self%Edagg
@@ -495,9 +499,9 @@ MODULE MODPFE
   ! Calculate the partition function via nested sampling (use NSVolume routine)
   SUBROUTINE NSPartition(self,System,beta)
     CLASS(PFE) :: self
-    TYPE(LJ) :: System
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: beta
     INTEGER :: i
-    REAL*8 :: beta
     REAL*8 :: energy, Emin
     REAL*8 :: summation
 
@@ -519,8 +523,10 @@ MODULE MODPFE
   ! Relax the system to energy lower than threshold
   SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps)
     TYPE(LJ) System
-    INTEGER :: aid, nrelaxsteps
-    REAL*8 :: threshold, stepsize, E1, E2
+    REAL*8,INTENT(IN) :: threshold, stepsize
+    INTEGER,INTENT(OUT) :: nrelaxsteps
+    INTEGER :: aid
+    REAL*8 :: E1, E2
     REAL*8 :: coords(3)
 
     nrelaxsteps = 0
@@ -547,9 +553,10 @@ MODULE MODPFE
   ! Propagate the system while maintaining the energy under the threshold
   SUBROUTINE propagate(System, threshold, nsteps, stepsize)
     TYPE(LJ) System
-    INTEGER :: i
-    INTEGER :: aid, nsteps
-    REAL*8 :: threshold, stepsize, E1, E2
+    REAL*8,INTENT(IN) :: threshold, stepsize
+    INTEGER,INTENT(IN) :: nsteps
+    INTEGER :: i, aid
+    REAL*8 :: E1, E2
     REAL*8 :: coords(3)
 
     coords = 0.d0
