@@ -260,7 +260,7 @@ MODULE MODPFE
     ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim),Egrid(nbin))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
-    PRINT *, 'DEBUG PartFunc2: Emin = ', Emin, 'Emax = ', Emax
+    PRINT *, 'DEBUG PartFunc2: Emax  = ', Emax, 'Emin  = ', Emin
     Func(:) = EXP(beta*(Energy-Emax))
     Func2(:) = EXP(2*beta*(Energy-Emax))
 
@@ -323,6 +323,7 @@ MODULE MODPFE
     ! Reassign Estat and Edagg
     Estar = self%Estar
     Edagg = self%Edagg
+    PRINT *, 'DEBUG PartFunc2: FINAL Estar = ', Estar, 'Edagg = ', Edagg, ' Err2 = ', Err2min
 
     ! Calculate the cutoff percentage for statistics
     Heaviside(:) = 1.d0
@@ -343,7 +344,7 @@ MODULE MODPFE
 
     ! calculate the partition function (Omega = L**3N * volume)
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
-    self%lnQ = LogOmega - LOG(Avg) - beta*Emax
+    self%lnQ = LogOmega - LOG(self%Avg) - beta*Emax
 
     !! DEALLOCATE
     !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
