@@ -9,7 +9,7 @@ MODULE MODPFE
   TYPE PFE
     INTEGER :: nsamples, nsteps, nlevel
     REAL*8  :: stepsize, fract, percentage
-    REAL*8  :: Edagg, Estar, Err2, Avg, Avg2 
+    REAL*8  :: Edagg, Estar, Err2, Avg, Avg2
     REAL*8  :: Eroot, VErr2
     REAL*8  :: lnQ, logVolume, logVstar, logVdagg
     REAL*8, ALLOCATABLE  :: levels(:), logVolumes(:)
@@ -260,6 +260,7 @@ MODULE MODPFE
     ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim),Egrid(nbin))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
+    PRINT *, 'DEBUG PartFunc2: Emin = ', Emin, 'Emax = ', Emax
     Func(:) = EXP(beta*(Energy-Emax))
     Func2(:) = EXP(2*beta*(Energy-Emax))
 
@@ -277,6 +278,7 @@ MODULE MODPFE
     Err2min = ABS((Avg2/Avg**2-1)/edim)
 
     ! Find Estar and Edagg based on Egrid
+    OPEN(UNIT=15, FILE='errmap.dat', STATUS='unknown', ACTION='write')
     DO i = 1, nbin
 
       Estar = Egrid(nbin-i+1)
@@ -284,7 +286,10 @@ MODULE MODPFE
       DO j = 1, nbin
 
         Edagg = Egrid(j)
-        IF (Edagg >= Estar) EXIT
+        IF (Edagg >= Estar) THEN
+          WRITE(15,*) Edagg, Estar, 'NaN'
+          CYCLE
+        END IF
 
         ! Calculate the averages and error
         Heaviside(:) = 1.d0
@@ -293,7 +298,7 @@ MODULE MODPFE
             Heaviside(k) = 0.d0
           END IF
         END DO
-        
+
         Avg = SUM(Func*Heaviside)/edim
         Avg2= SUM(Func2*Heaviside)/edim
         Err2 = ABS((Avg2/Avg**2-1)/edim)
@@ -308,9 +313,12 @@ MODULE MODPFE
           Err2min = Err2
           PRINT *, 'DEBUG PartFunc2: Estar = ', Estar, 'Edagg = ', Edagg, ' Err2 = ', Err2
         END IF
-        
+        WRITE(15,*) Edagg, Estar, DSQRT(Err2)
+
       END DO
+      WRITE(15,*)
     END DO
+    CLOSE(UNIT=15)
 
     ! Reassign Estat and Edagg
     Estar = self%Estar
