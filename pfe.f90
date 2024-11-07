@@ -7,7 +7,7 @@ MODULE MODPFE
   IMPLICIT NONE
 
   TYPE PFE
-    INTEGER :: nsamples, nsteps, nlevel
+    INTEGER :: nsamples, nsteps, nlevel, nextrasteps
     REAL*8  :: stepsize, fract, percentage
     REAL*8  :: Edagg, Estar, Err2, Avg, Avg2
     REAL*8  :: Eroot, VErr2
@@ -30,6 +30,7 @@ MODULE MODPFE
     INTEGER :: fd
 
     READ(fd,*) self%nsamples
+    READ(fd,*) self%nextrasteps
     READ(fd,*) self%nsteps
     READ(fd,*) self%stepsize
     READ(fd,*) self%fract
@@ -115,133 +116,6 @@ MODULE MODPFE
   END SUBROUTINE PartFunc
 
 
-! ! Calculate the partition function via Partition Function Estimator (both side cutoff)
-! SUBROUTINE PartFunc2(self,System,Energy,beta)
-!   CLASS(PFE) :: self
-!   TYPE(LJ) :: System
-!   INTEGER :: i
-!   INTEGER :: edim
-!   REAL*8 :: totaldiff, diffstar, diffdagg
-!   REAL*8 :: beta, Emax, Emin, Estar_prev, Estar, Edagg_prev, Edagg
-!   REAL*8 :: Avg, Avg2, Err2, LogOmega
-!   REAL*8 :: Energy(:)
-!   REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
-
-!   ! Initialization
-!   edim = SIZE(Energy)
-!   ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
-!   Emax = MAXVAL(Energy)
-!   Emin = MINVAL(Energy)
-!   Func(:) = EXP(beta*(Energy-Emax))
-!   Func2(:) = EXP(2*beta*(Energy-Emax))
-
-!   Estar = Emax
-!   Estar_prev = Estar + 1
-!   Edagg = Emin
-!   Edagg_prev = Edagg - 1
-!   diffstar = ABS(Estar - Estar_prev)
-!   diffdagg = ABS(Edagg - Edagg_prev)
-!   totaldiff  = SQRT(diffstar**2 + diffdagg**2)
-
-!   ! Determine Estar and Edagger iteratively
-!   DO WHILE (totaldiff > 2E-6)
-
-!     ! Solve Estar iteratively
-!     DO WHILE (diffstar > 1E-6)
-!       ! Generate the Heaviside function
-!       Heaviside(:) = 1.d0
-!       DO i = 1, edim
-!         IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
-!           Heaviside(i) = 0.d0
-!         END IF
-!       END DO
-
-!       ! Calculate Avg and Avg2 (Energy shifted)
-!       Avg = SUM(Func*Heaviside)/edim
-!       Avg2= SUM(Func2*Heaviside)/edim
-
-!       ! Update E*, Err2, difference
-!       Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
-!       Err2 = (Avg2/Avg**2-1)/edim
-!       diffstar = ABS(Estar-Estar_prev)
-!       PRINT *, 'DEBUG PartFunc2: Estar = ',Estar,' Err2 = ',Err2
-
-!       ! For next iteration
-!       Estar_prev = Estar
-!     END DO
-
-!     ! Solve Edagg iteratively
-!     DO WHILE (diffdagg > 1E-6)
-!       ! Generate the Heaviside function
-!       Heaviside(:) = 1.d0
-!       DO i = 1, edim
-!         IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
-!           Heaviside(i) = 0.d0
-!         END IF
-!       END DO
-
-!       ! Calculate Avg and Avg2 (Energy shifted)
-!       Avg = SUM(Func*Heaviside)/edim
-!       Avg2= SUM(Func2*Heaviside)/edim
-
-!       ! Update E+, Err2, difference
-!       Edagg = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
-!       Err2 = (Avg2/Avg**2-1)/edim
-!       diffdagg = ABS(Edagg-Edagg_prev)
-!       PRINT *, 'DEBUG PartFunc2: Edagg = ',Edagg,' Err2 = ',Err2
-
-!       ! Sanity Check
-!       IF (Edagg >= Estar) THEN
-!         PRINT *, "Estar:", Estar
-!         PRINT *, "Edagg:", Edagg
-!         PRINT *, "Edagg >= Estar!  Error occured! Program stops!"
-!         STOP 1
-!       END IF
-
-!       ! For next iteration
-!       Edagg_prev = Edagg
-!     END DO
-
-!     ! Update total difference
-!     totaldiff  = SQRT(diffstar**2 + diffdagg**2)
-
-!     ! TODO: At this point, totaldiff will be <= sqrt(2)*1E-6,
-!     ! so the outer loop will terminate after one cycle.
-!     ! Should we recalculate diffstar because Edagg has changed?
-
-!   END DO
-
-!   ! Assign Estar and Edagg
-!   self%Estar = Estar
-!   self%Edagg = Edagg
-
-!   ! Recalculate Avg, Avg2, Err based on the final Estar, also calculate the cutoff percentage for statistics
-!   Heaviside(:) = 1.d0
-!   self%percentage = 0
-!   DO i = 1, edim
-!     IF ((Energy(i) < Edagg) .OR. (Energy(i) > Estar)) THEN
-!       Heaviside(i) = 0.d0
-!       self%percentage = self%percentage + 1
-!     END IF
-!   END DO
-!   Avg = SUM(Func*Heaviside)/edim
-!   Avg2= SUM(Func2*Heaviside)/edim
-!   Err2= (Avg2/Avg**2 -1)/edim
-!   self%percentage = self%percentage/edim
-!   self%Err2 = Err2
-
-!   ! calculate the volume by the nested sampling
-!   CALL self%NSVolume(System,Emin,.TRUE.)
-
-!   ! calculate the partition function (Omega = L**3N * volume)
-!   LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
-!   self%lnQ = LogOmega - LOG(Avg) - beta*Emax
-
-!   !! DEALLOCATE
-!   !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
-! END SUBROUTINE PartFunc2
-
-
   ! Calculate the partition function via Partition Function Estimator (both side cutoff)
   SUBROUTINE PartFunc2(self,System,Energy,beta,nbin)
     CLASS(PFE) :: self
@@ -311,7 +185,6 @@ MODULE MODPFE
           self%Avg  = Avg
           self%Avg2 = Avg2
           Err2min = Err2
-          PRINT *, 'DEBUG PartFunc2: Estar = ', Estar, 'Edagg = ', Edagg, ' Err2 = ', Err2
         END IF
         WRITE(15,*) Edagg, Estar, DSQRT(Err2)
 
@@ -359,10 +232,10 @@ MODULE MODPFE
     LOGICAL,INTENT(IN) :: flag ! .True. for both end cutting
     TYPE(LJ), ALLOCATABLE :: Samples(:)
     INTEGER :: i
-    INTEGER :: ndagg, nstar, niter, nsamples, nsteps
+    INTEGER :: ndagg, nstar, niter, nsamples, nsteps, nextrasteps
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
-    REAL*8 :: Edagg, Estar, Eroot, fract, Elevel
-    REAL*8 :: stepsize, logVolume, VErr2
+    REAL*8 :: Edagg, Estar, Eroot, fract, Elevel, Elevel_further
+    REAL*8 :: stepsize, logVolume, VErr2, Einitmin
 
     ! initialization
     Edagg = self%Edagg
@@ -370,6 +243,7 @@ MODULE MODPFE
     Eroot = self%Eroot
     fract = self%fract
     nsamples = self%nsamples
+    nextrasteps = self%nextrasteps
     nsteps = self%nsteps
     stepsize = self%stepsize
     nrelaxsteps = 0
@@ -404,17 +278,30 @@ MODULE MODPFE
     ALLOCATE(self%levels(niter),self%logVolumes(niter))
     ALLOCATE(Samples(nsamples))
 
-    ! initialization
-    DO i = 1, nsamples
+    !! initialization
+    !DO i = 1, nsamples
+    !  Samples(i) = System
+    !  CALL Samples(i)%genXYZ()
+    !END DO
+    !
+    ! to start, make sure all points are within the root energy
+    !DO i = 1, nsamples
+    !  IF (Samples(i)%getenergy() > Eroot) THEN
+    !    noutliers = noutliers + 1
+    !    CALL relax(Samples(i), Eroot, stepsize, nrelaxsteps, nextrasteps)
+    !    CALL propagate(Samples(i), Eroot, nsteps, stepsize)
+    !  END IF
+    !  print*, Samples(i)%getenergy()
+    !END DO
+    Einitmin = Eroot
+    i = 1
+    DO WHILE (i <= nsamples)
       Samples(i) = System
       CALL Samples(i)%genXYZ()
-    END DO
-
-    ! to start, make sure all points are within the root energy
-    DO i = 1, nsamples
-      IF (Samples(i)%getenergy() > Eroot) THEN
-        CALL relax(Samples(i), Eroot, stepsize, nrelaxsteps)
-        CALL propagate(Samples(i), Eroot, nsteps, stepsize)
+      IF (Samples(i)%getenergy() <= Eroot) THEN
+        Einitmin = Samples(i)%getenergy()
+        i = i + 1 
+      ELSE
       END IF
     END DO
 
@@ -427,9 +314,8 @@ MODULE MODPFE
     ! calculate the log of the relative volume iteratively
     DO iterid = 1, niter
 
-      PRINT *, 'DEBUG:  iterid', iterid, 'niter', niter
-
       Elevel = (Elevel - Emin) * fract + Emin
+      Elevel_further = (Elevel - Emin) * fract + Emin
       ! fix the level to Edagg or Estar to avoid interpolation
       IF (iterid == niter)  Elevel = Edagg
       IF (iterid == nstar)  Elevel = Estar
@@ -444,7 +330,8 @@ MODULE MODPFE
         IF (Samples(i)%getenergy() <= Elevel) THEN
            ninliers = ninliers + 1
         ELSE
-           CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps)
+           CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps)
+           !CALL relax(Samples(i), Elevel_further, stepsize, nrelaxsteps, nextrasteps)
            CALL propagate(Samples(i), Elevel, nsteps, stepsize)
            ! data for performance statistics
            noutliers = noutliers + 1
@@ -454,6 +341,8 @@ MODULE MODPFE
 
       ! data for performance statistics
       WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
+
+      PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
 
       ! abort if no inliers (volume becomes zero)
       IF (ninliers == 0) THEN
@@ -530,17 +419,20 @@ MODULE MODPFE
 
 
   ! Relax the system to energy lower than threshold
-  SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps)
+  SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps, nextrasteps)
     TYPE(LJ) System
+    INTEGER, INTENT(IN) :: nextrasteps
     REAL*8,INTENT(IN) :: threshold, stepsize
     INTEGER,INTENT(OUT) :: nrelaxsteps
-    INTEGER :: aid
+    INTEGER :: i, aid
     REAL*8 :: E1, E2
     REAL*8 :: coords(3)
 
     nrelaxsteps = 0
     coords = 0.d0
     E1 = System%getenergy()
+
+    ! First relax to the desired energy level
     DO WHILE (E1 > threshold)
       aid = RANDOM_INTEGER(System%natoms)
       coords(:) = System%XYZ(:,aid)
@@ -557,7 +449,25 @@ MODULE MODPFE
       nrelaxsteps = nrelaxsteps + 1
     END DO
 
+    ! Then relax extra number of steps if desired
+    DO i = 1, nextrasteps
+      aid = RANDOM_INTEGER(System%natoms)
+      coords(:) = System%XYZ(:,aid)
+      CALL System%move(aid,stepsize)
+      E2 = System%getenergy()
+      IF (E2 > E1) THEN
+        ! reject the move if energy gets higher
+        System%XYZ(:,aid) = coords(:)
+        System%energy = E1
+      ELSE
+        ! accept the move if energy gets lower
+        E1 = E2
+      END IF
+      nrelaxsteps = nrelaxsteps + 1
+    END DO
+
   END SUBROUTINE relax
+
 
   ! Propagate the system while maintaining the energy under the threshold
   SUBROUTINE propagate(System, threshold, nsteps, stepsize)
