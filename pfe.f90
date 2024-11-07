@@ -405,8 +405,8 @@ MODULE MODPFE
   ! Relax the system to energy lower than threshold
   SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps, nextrasteps)
     TYPE(LJ) System
-    INTEGER, INTENT(IN) :: nextrasteps
     REAL*8,INTENT(IN) :: threshold, stepsize
+    INTEGER,INTENT(IN) :: nextrasteps
     INTEGER,INTENT(OUT) :: nrelaxsteps
     INTEGER :: i, aid
     REAL*8 :: E1, E2
@@ -416,25 +416,9 @@ MODULE MODPFE
     coords = 0.d0
     E1 = System%getenergy()
 
-    ! First relax to the desired energy level
-    DO WHILE (E1 > threshold)
-      aid = RANDOM_INTEGER(System%natoms)
-      coords(:) = System%XYZ(:,aid)
-      CALL System%move(aid,stepsize)
-      E2 = System%getenergy()
-      IF (E2 > E1) THEN
-        ! reject the move if energy gets higher
-        System%XYZ(:,aid) = coords(:)
-        System%energy = E1
-      ELSE
-        ! accept the move if energy gets lower
-        E1 = E2
-      END IF
-      nrelaxsteps = nrelaxsteps + 1
-    END DO
-
-    ! Then relax extra number of steps if desired
-    DO i = 1, nextrasteps
+    i = 0 ! count extra steps
+    DO WHILE ((E1 > threshold) .OR. (i < nextrasteps))
+      IF (E1 <= threshold)  i = i + 1
       aid = RANDOM_INTEGER(System%natoms)
       coords(:) = System%XYZ(:,aid)
       CALL System%move(aid,stepsize)
