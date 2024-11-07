@@ -18,6 +18,7 @@ MODULE MODPFE
       PROCEDURE :: rdinp => pfe_rdinp
       PROCEDURE :: PartFunc
       PROCEDURE :: PartFunc2
+      PROCEDURE :: PartFunc3
       PROCEDURE :: NSVolume
       PROCEDURE :: NSPartition
   END TYPE PFE
@@ -220,6 +221,169 @@ MODULE MODPFE
   END SUBROUTINE PartFunc2
 
 
+  ! Calculate the partition function via Partition Function Estimator,
+  ! combined version doing NSVolume at the same time
+  SUBROUTINE PartFunc3(self,System,Energy,beta)
+    CLASS(PFE) :: self
+    TYPE(LJ),INTENT(IN) :: System
+    REAL*8,INTENT(IN) :: Energy(:)
+    REAL*8,INTENT(IN) :: beta
+    INTEGER :: i, k, edim
+    REAL*8 :: Emax, Emin
+    REAL*8 :: Estar
+    REAL*8 :: Avg, Avg2, Err2, LogOmega, lnQ
+    REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
+    INTEGER :: nsamples, nsteps, nextrasteps
+    REAL*8 :: fract, stepsize
+    INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
+    INTEGER :: naccept, tnaccept_relax, tnaccept_prop
+    REAL*8 :: Eroot, Elevel, logVolume, Verr2
+    REAL*8 :: TotErr2, TotErr2min
+    TYPE(LJ), ALLOCATABLE :: Samples(:)
+
+    ! get settings
+    Eroot       = self%Eroot
+    fract       = self%fract
+    nsamples    = self%nsamples
+    nsteps      = self%nsteps
+    nextrasteps = self%nextrasteps
+    stepsize    = self%stepsize
+
+    ! Initialization
+    edim = SIZE(Energy)
+    ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
+    Emax = MAXVAL(Energy)
+    Emin = MINVAL(Energy)
+    PRINT *, 'DEBUG PartFunc3: Emax  = ', Emax, 'Emin  = ', Emin
+    Func(:) = EXP(beta*(Energy-Emax))
+    Func2(:) = EXP(2*beta*(Energy-Emax))
+
+    ! to start, generate samples all within the root energy,
+    ! via rejection sampling
+    ALLOCATE(Samples(nsamples))
+    i = 1
+    DO WHILE (i <= nsamples)
+      Samples(i) = System
+      CALL Samples(i)%genXYZ()
+      IF (Samples(i)%getenergy() <= Eroot) THEN
+        i = i + 1
+      END IF
+    END DO
+
+    ! ouput for NS performance statistics
+    OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
+    OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
+    OPEN(UNIT=30,FILE="PFE.dat",STATUS="UNKNOWN")
+    WRITE(30,'(3a20,3a16)') &
+      '#          Estar    ', 'logVolume    ', 'lnQ    ', 'Err    ', 'VErr    ', 'TotErr    '
+
+    ! calculate the log of the relative volume iteratively
+    Elevel = Eroot
+    logVolume = 0.d0
+    Verr2 = 0.d0
+    TotErr2 = 1d99
+    TotErr2min = 1d99
+    iterid = 0
+    DO WHILE (TotErr2 <= 1.5*TotErr2min) ! TODO: find good fudge factor
+
+      ! update Elevel
+      iterid = iterid + 1
+      Elevel = (Elevel - Emin) * fract + Emin
+
+      ! data for performance statistics
+      noutliers = 0
+      ninliers = 0
+      tnrelaxsteps = 0
+      tnaccept_relax = 0
+      tnaccept_prop = 0
+
+      ! push the samples outside to the area under Elevel, gather statistics
+      DO i = 1, nsamples
+        IF (Samples(i)%getenergy() <= Elevel) THEN
+          ninliers = ninliers + 1
+        ELSE
+          CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps, naccept)
+          tnrelaxsteps = tnrelaxsteps + nrelaxsteps
+          tnaccept_relax = tnaccept_relax + naccept
+          CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept)
+          tnaccept_prop = tnaccept_prop + naccept
+          noutliers = noutliers + 1
+        END IF
+      END DO
+
+      ! data for performance statistics
+      WRITE(10,'(i8,i8,2i12,2f8.3)') &
+        iterid, noutliers, tnrelaxsteps, nsteps*noutliers, &
+        1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers)
+      FLUSH(10)
+
+      PRINT *, 'DEBUG: step ', iterid, 'inliers', ninliers, '/', nsamples, 'Elevel-Emin = ',Elevel-Emin
+
+      ! abort if no inliers (volume becomes zero)
+      IF (ninliers == 0) THEN
+        PRINT *, 'PartFunc3: volume=0 after ',iterid,' iterations -- increase frac?'
+        STOP 1
+      END IF
+
+      ! calculate the current relative volume and the cumulated error Verr2
+      logVolume = logVolume + LOG(1.d0*ninliers/nsamples)
+      VErr2 = VErr2 + (1.d0/ninliers - 1.d0/nsamples)
+
+      ! if energy in the sampling range, calculate <f> and its error
+      IF (Elevel <= Emax) THEN
+        Estar = Elevel
+
+        ! Calculate the averages and error
+        Heaviside(:) = 1.d0
+        DO k = 1, edim
+          IF (Energy(k) > Estar) THEN
+            Heaviside(k) = 0.d0
+          END IF
+        END DO
+        Avg = SUM(Func*Heaviside)/edim
+        Avg2= SUM(Func2*Heaviside)/edim
+        Err2 = ABS((Avg2/Avg**2-1)/edim)
+
+        ! calculate the partition function (Omega = L**3N * volume)
+        LogOmega = 3*System%natoms*LOG(System%L) + logVolume
+        lnQ = LogOmega - LOG(Avg) - beta*Emax
+
+        ! check for new best
+        TotErr2 = Err2 + VErr2
+        IF (TotErr2 < TotErr2min) THEN
+          ! store result
+          self%Estar = Estar
+          self%Err2  = Err2
+          self%Verr2 = Verr2
+          self%Avg   = Avg
+          self%Avg2  = Avg2
+          self%lnQ   = lnQ
+          self%logVolume = logVolume
+          self%percentage = 1.d0 - SUM(Heaviside)/edim
+          TotErr2min = TotErr2
+        END IF
+
+        ! output PFE data
+        WRITE(30,'(3g20.12,3g16.10)') &
+          Estar, logVolume, lnQ, SQRT(Err2), SQRT(VErr2), SQRT(TotErr2)
+        FLUSH(30)
+
+      END IF
+
+      ! Output levels (unit: kj/mol)
+      WRITE(20,*) Elevel*cal2joule, logVolume, EXP(logVolume)
+      FLUSH(20)
+
+    END DO
+
+    ! clean up
+    CLOSE(10)
+    CLOSE(20)
+    CLOSE(30)
+
+  END SUBROUTINE PartFunc3
+
+
   ! Calculate the volume ratio via the nested sampling
   SUBROUTINE NSVolume(self,System,Emin,flag)
     CLASS(PFE) :: self
@@ -284,7 +448,7 @@ MODULE MODPFE
       CALL Samples(i)%genXYZ()
       IF (Samples(i)%getenergy() <= Eroot) THEN
         Einitmin = Samples(i)%getenergy()
-        i = i + 1 
+        i = i + 1
       END IF
     END DO
 

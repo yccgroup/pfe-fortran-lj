@@ -14,7 +14,7 @@
 1000                   # MC output frequency
 MC.bin                 # Filename for the MC data
 Energy.dat             # Filename for the energy data
-.True.                 # Cutoff from both end of the energy distribution?
+.True.                 # use PartFunc3
 100                    # Number of bins for the energy distribution (used to find Edagg and Estar, ignored if cutoff is set to .False.)
 200                    # NS nsamples (1000)
 0                      # NS extra relaxation steps (0)

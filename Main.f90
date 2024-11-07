@@ -191,8 +191,8 @@ PROGRAM Main
       PRINT *, "Letitia: calculate partition function via PFE"
       FLUSH(6)
       IF (flag) THEN
-        PRINT *, "call PartFunc2"
-        CALL Parfu%PartFunc2(System,Energy,beta,nbin)
+        PRINT *, "call PartFunc3"
+        CALL Parfu%PartFunc3(System,Energy,beta)
       ELSE
         CALL Parfu%PartFunc(System,Energy,beta)
       END IF
@@ -202,7 +202,7 @@ PROGRAM Main
       PRINT *, "PFE lnP = ", lnP
       PRINT *, "PFE lnZ = ", lnZ
       PRINT *, "PFE Err VErr Err+VErr = ", SQRT(Parfu%Err2), SQRT(Parfu%VErr2), SQRT(Parfu%Err2+Parfu%VErr2)
-      PRINT *, "Estar = ", Parfu%Estar*cal2joule, "kJ/mol"
+      PRINT *, "Estar = ", Parfu%Estar*cal2joule, "kJ/mol = ", Parfu%Estar, "kcal/mol"
       PRINT *, "Cutoff % = ", Parfu%percentage*100
   
       ! DEBUG for Natoms == 2 only
