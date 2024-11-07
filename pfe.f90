@@ -230,6 +230,7 @@ MODULE MODPFE
     INTEGER :: i
     INTEGER :: ndagg, nstar, niter, nsamples, nsteps, nextrasteps
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
+    INTEGER :: naccept, tnaccept_relax, tnaccept_prop
     REAL*8 :: Edagg, Estar, Eroot, fract, Elevel, Elevel_further
     REAL*8 :: stepsize, logVolume, VErr2, Einitmin
 
@@ -306,23 +307,31 @@ MODULE MODPFE
       noutliers = 0
       ninliers = 0
       tnrelaxsteps = 0
+      tnaccept_relax = 0
+      tnaccept_prop = 0
 
       ! push the samples outside to the area under Elevel, count inliers
       DO i = 1, nsamples
         IF (Samples(i)%getenergy() <= Elevel) THEN
            ninliers = ninliers + 1
         ELSE
-           CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps)
-           !CALL relax(Samples(i), Elevel_further, stepsize, nrelaxsteps, nextrasteps)
-           CALL propagate(Samples(i), Elevel, nsteps, stepsize)
+           CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps, naccept)
+           !CALL relax(Samples(i), Elevel_further, stepsize, nrelaxsteps, nextrasteps, naccept)
            ! data for performance statistics
-           noutliers = noutliers + 1
            tnrelaxsteps = tnrelaxsteps + nrelaxsteps
+           tnaccept_relax = tnaccept_relax + naccept
+
+           CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept)
+           ! data for performance statistics
+           tnaccept_prop = tnaccept_prop + naccept
+           noutliers = noutliers + 1
         END IF
       END DO
 
       ! data for performance statistics
-      WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
+      WRITE(10,'(i8,i8,2i12,2f8.3)') &
+        iterid, noutliers, tnrelaxsteps, nsteps*noutliers, &
+        1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers)
       FLUSH(10)
 
       PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
@@ -403,15 +412,16 @@ MODULE MODPFE
 
 
   ! Relax the system to energy lower than threshold
-  SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps, nextrasteps)
+  SUBROUTINE relax(System, threshold, stepsize, nrelaxsteps, nextrasteps, naccept)
     TYPE(LJ) System
     REAL*8,INTENT(IN) :: threshold, stepsize
     INTEGER,INTENT(IN) :: nextrasteps
-    INTEGER,INTENT(OUT) :: nrelaxsteps
+    INTEGER,INTENT(OUT) :: nrelaxsteps, naccept
     INTEGER :: i, aid
     REAL*8 :: E1, E2
     REAL*8 :: coords(3)
 
+    naccept = 0
     nrelaxsteps = 0
     coords = 0.d0
     E1 = System%getenergy()
@@ -430,6 +440,7 @@ MODULE MODPFE
       ELSE
         ! accept the move if energy gets lower
         E1 = E2
+        naccept = naccept + 1
       END IF
       nrelaxsteps = nrelaxsteps + 1
     END DO
@@ -438,14 +449,16 @@ MODULE MODPFE
 
 
   ! Propagate the system while maintaining the energy under the threshold
-  SUBROUTINE propagate(System, threshold, nsteps, stepsize)
+  SUBROUTINE propagate(System, threshold, nsteps, stepsize, naccept)
     TYPE(LJ) System
     REAL*8,INTENT(IN) :: threshold, stepsize
     INTEGER,INTENT(IN) :: nsteps
+    INTEGER,INTENT(OUT) :: naccept
     INTEGER :: i, aid
     REAL*8 :: E1, E2
     REAL*8 :: coords(3)
 
+    naccept = 0
     coords = 0.d0
     E1 = System%getenergy()
     DO i = 1, nsteps
@@ -460,6 +473,7 @@ MODULE MODPFE
       ELSE
         ! accept the move, update the energy
         E1 = E2
+        naccept = naccept + 1
       END IF
     END DO
 
