@@ -298,10 +298,10 @@ MODULE MODPFE
     DO iterid = 1, niter
 
       Elevel = (Elevel - Emin) * fract + Emin
-      Elevel_further = (Elevel - Emin) * fract + Emin
       ! fix the level to Edagg or Estar to avoid interpolation
       IF (iterid == niter)  Elevel = Edagg
       IF (iterid == nstar)  Elevel = Estar
+      Elevel_further = (Elevel - Emin) * fract + Emin
 
       ! data for performance statistics
       noutliers = 0
