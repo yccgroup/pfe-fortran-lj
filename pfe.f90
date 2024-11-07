@@ -111,8 +111,6 @@ MODULE MODPFE
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
     self%lnQ = LogOmega - LOG(Avg) - beta*Emax
 
-    !! DEALLOCATE
-    !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
   END SUBROUTINE PartFunc
 
 
@@ -186,17 +184,17 @@ MODULE MODPFE
           self%Avg2 = Avg2
           Err2min = Err2
         END IF
-        WRITE(15,*) Edagg, Estar, DSQRT(Err2)
+        WRITE(15,*) Edagg, Estar, SQRT(Err2)
 
       END DO
       WRITE(15,*)
     END DO
     CLOSE(UNIT=15)
 
-    ! Reassign Estat and Edagg
+    ! Reassign Estar and Edagg
     Estar = self%Estar
     Edagg = self%Edagg
-    PRINT *, 'DEBUG PartFunc2: FINAL Estar = ', Estar, 'Edagg = ', Edagg, ' Err2 = ', Err2min
+    PRINT *, 'DEBUG PartFunc2: Estar = ', Estar, 'Edagg = ', Edagg, ' Err2 = ', Err2min
 
     ! Calculate the cutoff percentage for statistics
     Heaviside(:) = 1.d0
@@ -219,8 +217,6 @@ MODULE MODPFE
     LogOmega = 3*System%natoms*LOG(System%L) + self%logVolume
     self%lnQ = LogOmega - LOG(self%Avg) - beta*Emax
 
-    !! DEALLOCATE
-    !DEALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
   END SUBROUTINE PartFunc2
 
 
@@ -278,21 +274,8 @@ MODULE MODPFE
     ALLOCATE(self%levels(niter),self%logVolumes(niter))
     ALLOCATE(Samples(nsamples))
 
-    !! initialization
-    !DO i = 1, nsamples
-    !  Samples(i) = System
-    !  CALL Samples(i)%genXYZ()
-    !END DO
-    !
-    ! to start, make sure all points are within the root energy
-    !DO i = 1, nsamples
-    !  IF (Samples(i)%getenergy() > Eroot) THEN
-    !    noutliers = noutliers + 1
-    !    CALL relax(Samples(i), Eroot, stepsize, nrelaxsteps, nextrasteps)
-    !    CALL propagate(Samples(i), Eroot, nsteps, stepsize)
-    !  END IF
-    !  print*, Samples(i)%getenergy()
-    !END DO
+    ! to start, generate samples all within the root energy,
+    ! via rejection sampling
     Einitmin = Eroot
     i = 1
     DO WHILE (i <= nsamples)
@@ -301,7 +284,6 @@ MODULE MODPFE
       IF (Samples(i)%getenergy() <= Eroot) THEN
         Einitmin = Samples(i)%getenergy()
         i = i + 1 
-      ELSE
       END IF
     END DO
 
@@ -341,6 +323,7 @@ MODULE MODPFE
 
       ! data for performance statistics
       WRITE(10,*) iterid, noutliers, tnrelaxsteps, nsteps*noutliers
+      FLUSH(10)
 
       PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
 
@@ -377,6 +360,7 @@ MODULE MODPFE
 
     IF (flag) THEN
       ! Volume = Vstar - Vdagg
+      ! but Vdagg <<< Vstar, so the correction hardly matters...
       self%logVolume = LOG(EXP(self%logVstar) - EXP(self%logVdagg))
     ELSE
       self%logVolume = self%logVstar
