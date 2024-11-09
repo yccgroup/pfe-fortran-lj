@@ -233,6 +233,7 @@ MODULE MODPFE
     INTEGER :: naccept, tnaccept_relax, tnaccept_prop
     REAL*8 :: Edagg, Estar, Eroot, fract, Elevel, Elevel_further
     REAL*8 :: stepsize, logVolume, VErr2, Einitmin
+    REAL*8 :: movedist, movedist_std, sum_movedist, sum2_movedist
 
     ! initialization
     Edagg = self%Edagg
@@ -309,6 +310,8 @@ MODULE MODPFE
       tnrelaxsteps = 0
       tnaccept_relax = 0
       tnaccept_prop = 0
+      sum_movedist = 0.d0
+      sum2_movedist = 0.d0
 
       ! push the samples outside to the area under Elevel, count inliers
       DO i = 1, nsamples
@@ -321,17 +324,24 @@ MODULE MODPFE
            tnrelaxsteps = tnrelaxsteps + nrelaxsteps
            tnaccept_relax = tnaccept_relax + naccept
 
-           CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept)
+           CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept, movedist)
            ! data for performance statistics
            tnaccept_prop = tnaccept_prop + naccept
            noutliers = noutliers + 1
+           sum_movedist = sum_movedist + movedist
+           sum2_movedist = sum2_movedist + movedist**2
         END IF
       END DO
 
       ! data for performance statistics
-      WRITE(10,'(i8,i8,2i12,2f8.3)') &
+      movedist = sum_movedist / noutliers
+      movedist_std = SQRT( (sum2_movedist - sum_movedist**2/noutliers)/(noutliers-1) )
+      IF (noutliers == 0)  movedist = 0.d0
+      IF (noutliers <= 1)  movedist_std = 0.d0
+      WRITE(10,'(i8,i8,2i12,2f8.3,2g14.6)') &
         iterid, noutliers, tnrelaxsteps, nsteps*noutliers, &
-        1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers)
+        1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers), &
+        movedist, movedist_std
       FLUSH(10)
 
       PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
@@ -449,14 +459,19 @@ MODULE MODPFE
 
 
   ! Propagate the system while maintaining the energy under the threshold
-  SUBROUTINE propagate(System, threshold, nsteps, stepsize, naccept)
+  SUBROUTINE propagate(System, threshold, nsteps, stepsize, naccept, movedist)
     TYPE(LJ) System
     REAL*8,INTENT(IN) :: threshold, stepsize
     INTEGER,INTENT(IN) :: nsteps
     INTEGER,INTENT(OUT) :: naccept
+    REAL*8,INTENT(OUT) :: movedist
     INTEGER :: i, aid
     REAL*8 :: E1, E2
     REAL*8 :: coords(3)
+    REAL*8,ALLOCATABLE :: XYZorig(:,:)
+
+    ! store original system coordinates
+    ALLOCATE(XYZorig, SOURCE=System%XYZ)
 
     naccept = 0
     coords = 0.d0
@@ -476,6 +491,9 @@ MODULE MODPFE
         naccept = naccept + 1
       END IF
     END DO
+
+    ! calculate how far the system has moved
+    movedist = NORM2(System%XYZ - XYZorig)
 
   END SUBROUTINE propagate
 
