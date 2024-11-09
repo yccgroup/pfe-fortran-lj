@@ -230,13 +230,14 @@ MODULE MODPFE
     REAL*8,INTENT(IN) :: beta
     INTEGER :: i, k, edim
     REAL*8 :: Emax, Emin
-    REAL*8 :: Estar
+    REAL*8 :: Estar, Estar_prev, dEstar
     REAL*8 :: Avg, Avg2, Err2, LogOmega, lnQ
     REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
     INTEGER :: nsamples, nsteps, nextrasteps
     REAL*8 :: fract, stepsize
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
     INTEGER :: naccept, tnaccept_relax, tnaccept_prop
+    REAL*8 :: movedist, movedist_std, sum_movedist, sum2_movedist
     REAL*8 :: Eroot, Elevel, logVolume, Verr2
     REAL*8 :: TotErr2, TotErr2min
     TYPE(LJ), ALLOCATABLE :: Samples(:)
@@ -270,6 +271,29 @@ MODULE MODPFE
       END IF
     END DO
 
+    ! Estar = the cutoff energy where Err2 is minimal
+    ! Solve Estar iteratively
+    Estar = 0.75d0*Emax + 0.25d0*Emin
+    Estar_prev = Estar
+    dEstar = 1.d0
+    DO WHILE (dEstar > 1d-6)
+      ! Generate the Heaviside function
+      Heaviside(:) = 1.d0
+      DO i = 1, edim
+        IF (Energy(i) > Estar)  Heaviside(i) = 0.d0
+      END DO
+      ! Calculate Avg and Avg2 (Energy shifted)
+      Avg = SUM(Func*Heaviside)/edim
+      Avg2= SUM(Func2*Heaviside)/edim
+      ! Update E*, Err2, difference
+      Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
+      Err2 = (Avg2/Avg**2-1)/edim
+      PRINT *, 'DEBUG: Estar = ',Estar,' Err2 = ',Err2
+      dEstar = ABS(Estar-Estar_prev)
+      ! For next iteration
+      Estar_prev = Estar
+    END DO
+
     ! ouput for NS performance statistics
     OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
@@ -284,7 +308,7 @@ MODULE MODPFE
     TotErr2 = 1d99
     TotErr2min = 1d99
     iterid = 0
-    DO WHILE (TotErr2 <= 1.5*TotErr2min) ! TODO: find good fudge factor
+    DO WHILE (Elevel >= Estar)
 
       ! update Elevel
       iterid = iterid + 1
@@ -296,6 +320,8 @@ MODULE MODPFE
       tnrelaxsteps = 0
       tnaccept_relax = 0
       tnaccept_prop = 0
+      sum_movedist = 0.d0
+      sum2_movedist = 0.d0
 
       ! push the samples outside to the area under Elevel, gather statistics
       DO i = 1, nsamples
@@ -305,16 +331,23 @@ MODULE MODPFE
           CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps, naccept)
           tnrelaxsteps = tnrelaxsteps + nrelaxsteps
           tnaccept_relax = tnaccept_relax + naccept
-          CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept)
+          CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept, movedist)
           tnaccept_prop = tnaccept_prop + naccept
           noutliers = noutliers + 1
+          sum_movedist = sum_movedist + movedist
+          sum2_movedist = sum2_movedist + movedist**2
         END IF
       END DO
 
       ! data for performance statistics
-      WRITE(10,'(i8,i8,2i12,2f8.3)') &
+      movedist = sum_movedist / noutliers
+      movedist_std = SQRT( (sum2_movedist - sum_movedist**2/noutliers)/(noutliers-1) )
+      IF (noutliers == 0)  movedist = 0.d0
+      IF (noutliers <= 1)  movedist_std = 0.d0
+      WRITE(10,'(i8,i8,2i12,2f8.3,2g14.6)') &
         iterid, noutliers, tnrelaxsteps, nsteps*noutliers, &
-        1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers)
+        1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers), &
+        movedist, movedist_std
       FLUSH(10)
 
       PRINT *, 'DEBUG: step ', iterid, 'inliers', ninliers, '/', nsamples, 'Elevel-Emin = ',Elevel-Emin
@@ -331,14 +364,10 @@ MODULE MODPFE
 
       ! if energy in the sampling range, calculate <f> and its error
       IF (Elevel <= Emax) THEN
-        Estar = Elevel
-
-        ! Calculate the averages and error
+        ! Calculate the averages and error (with Elevel as the cutoff)
         Heaviside(:) = 1.d0
         DO k = 1, edim
-          IF (Energy(k) > Estar) THEN
-            Heaviside(k) = 0.d0
-          END IF
+          IF (Energy(k) > Elevel)  Heaviside(k) = 0.d0
         END DO
         Avg = SUM(Func*Heaviside)/edim
         Avg2= SUM(Func2*Heaviside)/edim
@@ -352,7 +381,7 @@ MODULE MODPFE
         TotErr2 = Err2 + VErr2
         IF (TotErr2 < TotErr2min) THEN
           ! store result
-          self%Estar = Estar
+          self%Estar = Elevel
           self%Err2  = Err2
           self%Verr2 = Verr2
           self%Avg   = Avg
@@ -365,7 +394,7 @@ MODULE MODPFE
 
         ! output PFE data
         WRITE(30,'(3g20.12,3g16.10)') &
-          Estar, logVolume, lnQ, SQRT(Err2), SQRT(VErr2), SQRT(TotErr2)
+          Elevel, logVolume, lnQ, SQRT(Err2), SQRT(VErr2), SQRT(TotErr2)
         FLUSH(30)
 
       END IF
