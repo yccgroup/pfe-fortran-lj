@@ -192,7 +192,7 @@ PROGRAM Main
       FLUSH(6)
       IF (flag) THEN
         PRINT *, "call PartFunc3"
-        CALL Parfu%PartFunc3(System,Energy,beta)
+        CALL Parfu%PartFunc3(System,Energy,beta,nbin)
       ELSE
         CALL Parfu%PartFunc(System,Energy,beta)
       END IF

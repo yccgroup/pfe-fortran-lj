@@ -223,15 +223,16 @@ MODULE MODPFE
 
   ! Calculate the partition function via Partition Function Estimator,
   ! combined version doing NSVolume at the same time
-  SUBROUTINE PartFunc3(self,System,Energy,beta)
+  SUBROUTINE PartFunc3(self,System,Energy,beta,nbin)
     CLASS(PFE) :: self
     TYPE(LJ),INTENT(IN) :: System
     REAL*8,INTENT(IN) :: Energy(:)
     REAL*8,INTENT(IN) :: beta
+    INTEGER,INTENT(IN) :: nbin
     INTEGER :: i, k, edim
-    REAL*8 :: Emax, Emin
-    REAL*8 :: Estar, Estar_prev, dEstar
-    REAL*8 :: Avg, Avg2, Err2, LogOmega, lnQ
+    REAL*8 :: Emax, Emin, dE
+    REAL*8 :: Estar
+    REAL*8 :: Avg, Avg2, Err2, Err2min, LogOmega, lnQ
     REAL*8, ALLOCATABLE  :: Work(:), Heaviside(:), Func(:), Func2(:)
     INTEGER :: nsamples, nsteps, nextrasteps
     REAL*8 :: fract, stepsize
@@ -272,34 +273,35 @@ MODULE MODPFE
     END DO
 
     ! Estar = the cutoff energy where Err2 is minimal
-    ! Solve Estar iteratively
-    Estar = 0.75d0*Emax + 0.25d0*Emin
-    Estar_prev = Estar
-    dEstar = 1.d0
-    DO WHILE (dEstar > 1d-6)
+    ! Solve Estar via grid search
+    Estar = Emax
+    Err2min = 1d99
+    dE = (Emax-Emin)/(nbin-1)
+    DO i = 1, nbin
+      Elevel = Emin + (i-1)*dE
+      IF (i==nbin)  Elevel = Emax ! for numerical stability
       ! Generate the Heaviside function
       Heaviside(:) = 1.d0
-      DO i = 1, edim
-        IF (Energy(i) > Estar)  Heaviside(i) = 0.d0
+      DO k = 1, edim
+        IF (Energy(k) > Elevel)  Heaviside(k) = 0.d0
       END DO
-      ! Calculate Avg and Avg2 (Energy shifted)
+      ! Calculate Avg and Avg2 (Energy shifted) and Err2
       Avg = SUM(Func*Heaviside)/edim
       Avg2= SUM(Func2*Heaviside)/edim
-      ! Update E*, Err2, difference
-      Estar = (LOG(2.d0) + LOG(Avg2) - LOG(Avg))/beta + Emax
-      Err2 = (Avg2/Avg**2-1)/edim
-      PRINT *, 'DEBUG: Estar = ',Estar,' Err2 = ',Err2
-      dEstar = ABS(Estar-Estar_prev)
-      ! For next iteration
-      Estar_prev = Estar
+      Err2 = ABS((Avg2/Avg**2-1)/edim)
+      IF (Err2 <= Err2min) THEN
+        Estar = Elevel
+        Err2Min = Err2
+      END IF
     END DO
+    PRINT *, 'DEBUG PartFunc3: Estar = ', Estar, 'Err2  = ', Err2Min
 
     ! ouput for NS performance statistics
     OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
     OPEN(UNIT=30,FILE="PFE.dat",STATUS="UNKNOWN")
     WRITE(30,'(3a20,3a16)') &
-      '#          Estar    ', 'logVolume    ', 'lnQ    ', 'Err    ', 'VErr    ', 'TotErr    '
+      '#          Elevel   ', 'logVolume    ', 'lnQ    ', 'Err    ', 'VErr    ', 'TotErr    '
 
     ! calculate the log of the relative volume iteratively
     Elevel = Eroot
@@ -308,11 +310,12 @@ MODULE MODPFE
     TotErr2 = 1d99
     TotErr2min = 1d99
     iterid = 0
-    DO WHILE (Elevel >= Estar)
+    DO WHILE (Elevel > Estar)
 
       ! update Elevel
       iterid = iterid + 1
       Elevel = (Elevel - Emin) * fract + Emin
+      IF (Elevel < Estar)  Elevel = Estar
 
       ! data for performance statistics
       noutliers = 0
