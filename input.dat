@@ -22,4 +22,6 @@ Energy.dat             # Filename for the energy data
 0.5                    # NS stepsize
 0.9                    # NS fraction (ratio between next energy and current energy)
 1e12                   # NS root energy (starting point, full configuration space)
-POT                    # Job: either MC (run MC and save data) or PFE/Exact (calculate the partition function, reads in MC data) or POT (dimer potential)
+10                     # NS save interval (number of iterations between saving NS state)
+NS.bin                 # Filename for NS data
+POT                    # Job: either MC (run MC and save data) or PFE (calculate the partition function, reads in MC data) or POT (dimer potential)

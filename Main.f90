@@ -167,25 +167,26 @@ PROGRAM Main
       STOP
     END IF
   
-    ! Partition Function for Natoms /= 1
-    IF (Parfu%Method == "Exact") THEN
-      
-      ! Calculate partition function by Nested Sampling (Time consuming)
-      PRINT *, "Letitia: calculate partition function via NS"
-      FLUSH(6)
-      ! Determine Estar and Emin for Exact method
-      CALL MCrun%Minimize(System) 
-      CALL System%calcenergy()
-      Parfu%Estar = System%Energy + kBT*0.1
-      CALL Parfu%NSVolume(System,System%Energy,.FALSE.)
-      CALL Parfu%NSPartition(System,beta)
-      lnQ = Parfu%lnQ
-      lnZ = lnQ + lnP
-      PRINT *, "NS lnQ = ", lnQ
-      PRINT *, "NS lnP = ", lnP
-      PRINT *, "NS lnZ = ", lnZ
-  
-    ELSE IF (Parfu%Method == "PFE") THEN
+!   ! Partition Function for Natoms /= 1
+!   IF (Parfu%Method == "Exact") THEN
+!     
+!     ! Calculate partition function by Nested Sampling (Time consuming)
+!     PRINT *, "Letitia: calculate partition function via NS"
+!     FLUSH(6)
+!     ! Determine Estar and Emin for Exact method
+!     CALL MCrun%Minimize(System) 
+!     CALL System%calcenergy()
+!     Parfu%Estar = System%Energy + kBT*0.1
+!     CALL Parfu%NSVolume(System,System%Energy,.FALSE.)
+!     CALL Parfu%NSPartition(System,beta)
+!     lnQ = Parfu%lnQ
+!     lnZ = lnQ + lnP
+!     PRINT *, "NS lnQ = ", lnQ
+!     PRINT *, "NS lnP = ", lnP
+!     PRINT *, "NS lnZ = ", lnZ
+! 
+!   ELSE IF (Parfu%Method == "PFE") THEN
+    IF (Parfu%Method == "PFE") THEN
       
       ! Calculate partition function by PFE (our theory)
       PRINT *, "Letitia: calculate partition function via PFE"

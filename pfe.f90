@@ -7,19 +7,20 @@ MODULE MODPFE
   IMPLICIT NONE
 
   TYPE PFE
-    INTEGER :: nsamples, nsteps, nlevel, nextrasteps
+    INTEGER :: nsamples, nsteps, nextrasteps
     REAL*8  :: stepsize, fract, percentage
     REAL*8  :: Edagg, Estar, Err2, Avg, Avg2
     REAL*8  :: Eroot, VErr2
     REAL*8  :: lnQ, logVolume, logVstar, logVdagg
-    REAL*8, ALLOCATABLE  :: levels(:), logVolumes(:)
+    INTEGER :: saveinterval
+    CHARACTER(LEN=80) :: filename
     CHARACTER(LEN=10) :: Method
     CONTAINS
       PROCEDURE :: rdinp => pfe_rdinp
       PROCEDURE :: PartFunc
       PROCEDURE :: PartFunc2
       PROCEDURE :: NSVolume
-      PROCEDURE :: NSPartition
+      !PROCEDURE :: NSPartition
   END TYPE PFE
 
   CONTAINS
@@ -35,6 +36,8 @@ MODULE MODPFE
     READ(fd,*) self%stepsize
     READ(fd,*) self%fract
     READ(fd,*) self%Eroot
+    READ(fd,*) self%saveinterval
+    READ(fd,*) self%filename
   END SUBROUTINE pfe_rdinp
 
   ! Calculate the partition function via Partition Function Estimator under PBC
@@ -228,10 +231,10 @@ MODULE MODPFE
     LOGICAL,INTENT(IN) :: flag ! .True. for both end cutting
     TYPE(LJ), ALLOCATABLE :: Samples(:)
     INTEGER :: i
-    INTEGER :: ndagg, nstar, niter, nsamples, nsteps, nextrasteps
+    INTEGER :: nsamples, nsteps, nextrasteps
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
     INTEGER :: naccept, tnaccept_relax, tnaccept_prop
-    REAL*8 :: Edagg, Estar, Eroot, fract, Elevel, Elevel_further
+    REAL*8 :: Edagg, Estar, Eroot, fract, Elevel
     REAL*8 :: stepsize, logVolume, VErr2, Einitmin
     REAL*8 :: movedist, movedist_std, sum_movedist, sum2_movedist
 
@@ -247,37 +250,9 @@ MODULE MODPFE
     nrelaxsteps = 0
     VErr2 = 0
 
-    ! determine nstar (number of iterations required to reach Estar)
-    nstar = 0
-    Elevel = Eroot
-    DO WHILE (Elevel > Estar)
-      ! introduce Emin to ensure the threshold is correctly scaled
-      Elevel = (Elevel - Emin) * fract + Emin
-      IF (Elevel < Estar)  Elevel = Estar
-      nstar = nstar + 1
-    END DO
-
-    ! determine ndagg (number of extra iterations required to reach Edagg)
-    ndagg = 0
-    IF (flag) THEN
-      DO WHILE (Elevel > Edagg)
-        ! introduce Emin to ensure the threshold is correctly scaled
-        Elevel = (Elevel - Emin) * fract + Emin
-        IF (Elevel < Edagg)  Elevel = Edagg
-        ndagg = ndagg + 1
-      END DO
-    END IF
-
-    ! assign the number of iteration to self%nlevel
-    niter = nstar + ndagg
-    self%nlevel = niter
-
-    ! allocate arrays
-    ALLOCATE(self%levels(niter),self%logVolumes(niter))
-    ALLOCATE(Samples(nsamples))
-
     ! to start, generate samples all within the root energy,
     ! via rejection sampling
+    ALLOCATE(Samples(nsamples))
     Einitmin = Eroot
     i = 1
     DO WHILE (i <= nsamples)
@@ -289,20 +264,24 @@ MODULE MODPFE
       END IF
     END DO
 
-    ! ouput for NS performance statistics
+    ! open files
     OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
+    OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
+    !OPEN(UNIT=30,FILE=TRIM(self%filename),STATUS="UNKNOWN")
 
     Elevel = Eroot
     logVolume = 0.d0
 
     ! calculate the log of the relative volume iteratively
-    DO iterid = 1, niter
+    iterid = 0
+    DO WHILE (Elevel > Estar)
 
+      ! update Elevel
+      iterid = iterid + 1
       Elevel = (Elevel - Emin) * fract + Emin
       ! fix the level to Edagg or Estar to avoid interpolation
-      IF (iterid == niter)  Elevel = Edagg
-      IF (iterid == nstar)  Elevel = Estar
-      Elevel_further = (Elevel - Emin) * fract + Emin
+      IF (Elevel < Edagg)  Elevel = Edagg
+      IF (Elevel < Estar)  Elevel = Estar
 
       ! data for performance statistics
       noutliers = 0
@@ -316,20 +295,19 @@ MODULE MODPFE
       ! push the samples outside to the area under Elevel, count inliers
       DO i = 1, nsamples
         IF (Samples(i)%getenergy() <= Elevel) THEN
-           ninliers = ninliers + 1
+          ninliers = ninliers + 1
         ELSE
-           CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps, naccept)
-           !CALL relax(Samples(i), Elevel_further, stepsize, nrelaxsteps, nextrasteps, naccept)
-           ! data for performance statistics
-           tnrelaxsteps = tnrelaxsteps + nrelaxsteps
-           tnaccept_relax = tnaccept_relax + naccept
+          CALL relax(Samples(i), Elevel, stepsize, nrelaxsteps, nextrasteps, naccept)
+          ! data for performance statistics
+          tnrelaxsteps = tnrelaxsteps + nrelaxsteps
+          tnaccept_relax = tnaccept_relax + naccept
 
-           CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept, movedist)
-           ! data for performance statistics
-           tnaccept_prop = tnaccept_prop + naccept
-           noutliers = noutliers + 1
-           sum_movedist = sum_movedist + movedist
-           sum2_movedist = sum2_movedist + movedist**2
+          CALL propagate(Samples(i), Elevel, nsteps, stepsize, naccept, movedist)
+          ! data for performance statistics
+          tnaccept_prop = tnaccept_prop + naccept
+          noutliers = noutliers + 1
+          sum_movedist = sum_movedist + movedist
+          sum2_movedist = sum2_movedist + movedist**2
         END IF
       END DO
 
@@ -344,7 +322,7 @@ MODULE MODPFE
         movedist, movedist_std
       FLUSH(10)
 
-      PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
+      PRINT *, 'DEBUG: step', iterid, ' inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
 
       ! abort if no inliers (volume becomes zero)
       IF (ninliers == 0) THEN
@@ -352,32 +330,28 @@ MODULE MODPFE
         STOP 1
       END IF
 
-      ! calculate the current relative volume and save it
+      ! calculate the current relative volume and the cumulated error VErr2
       logVolume = logVolume + LOG(1.d0*ninliers/nsamples)
-      self%levels(iterid) = Elevel
-      self%logVolumes(iterid) = logVolume
-
-      ! calculate the cumulated error VErr2
       VErr2 = VErr2 + (1.d0/ninliers - 1.d0/nsamples)
 
-      ! update when iterid == nstar
-      IF (iterid == nstar) THEN
+      ! Output levels (unit: kj/mol)
+      WRITE(20,*) Elevel*cal2joule, logVolume, EXP(logVolume)
+      FLUSH(20)
+
+      ! update when Estar is reached
+      IF (Elevel == Estar) THEN
         self%logVstar = logVolume
         self%VErr2 = VErr2
       END IF
 
     END DO
 
-    ! update when iterid == niter
+    CLOSE(10)
+    CLOSE(20)
+
     IF (flag) THEN
       self%logVdagg = logVolume
       !self%VErr2 = self%VErr2 + VErr2 ! not sure about this...
-    END IF
-
-    CLOSE(10)
-
-
-    IF (flag) THEN
       ! Volume = Vstar - Vdagg
       ! but Vdagg <<< Vstar, so the correction hardly matters...
       self%logVolume = LOG(EXP(self%logVstar) - EXP(self%logVdagg))
@@ -387,38 +361,31 @@ MODULE MODPFE
 
     PRINT *, "logVolume = ", self%logVolume, "volume = ", EXP(self%logVolume), "err = ", SQRT(self%VErr2)
 
-    ! Output levels (unit: kj/mol)
-    OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
-    DO i = 1, niter
-      WRITE(20,*) self%levels(i)*cal2joule, self%logVolumes(i), EXP(self%logVolumes(i))
-    END DO
-    CLOSE(20)
-
   END SUBROUTINE NSVolume
 
 
-  ! Calculate the partition function via nested sampling (use NSVolume routine)
-  SUBROUTINE NSPartition(self,System,beta)
-    CLASS(PFE) :: self
-    TYPE(LJ),INTENT(IN) :: System
-    REAL*8,INTENT(IN) :: beta
-    INTEGER :: i
-    REAL*8 :: energy, Emin
-    REAL*8 :: summation
+! ! Calculate the partition function via nested sampling (use NSVolume routine)
+! SUBROUTINE NSPartition(self,System,beta)
+!   CLASS(PFE) :: self
+!   TYPE(LJ),INTENT(IN) :: System
+!   REAL*8,INTENT(IN) :: beta
+!   INTEGER :: i
+!   REAL*8 :: energy, Emin
+!   REAL*8 :: summation
 
-    ! integration
-    summation = 0.d0
-    Emin = MINVAL(self%levels)
-    self%levels = self%levels - Emin
-    DO i = 1, self%nlevel-1
-      energy = 0.5d0*(self%levels(i)+self%levels(i+1))
-      summation = summation + EXP(-beta*energy)*(EXP(self%logVolumes(i))-EXP(self%logVolumes(i+1)))
-    END DO
+!   ! integration
+!   summation = 0.d0
+!   Emin = MINVAL(self%levels)
+!   self%levels = self%levels - Emin
+!   DO i = 1, self%nlevel-1
+!     energy = 0.5d0*(self%levels(i)+self%levels(i+1))
+!     summation = summation + EXP(-beta*energy)*(EXP(self%logVolumes(i))-EXP(self%logVolumes(i+1)))
+!   END DO
 
-    ! lnQ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV))
-    self%lnQ = 3*System%natoms*LOG(System%L) - beta*Emin + LOG(summation)
+!   ! lnQ = 3N*ln(L) - beta * Emin + ln(sum(EXP(-beta*(E-Emin))*dV))
+!   self%lnQ = 3*System%natoms*LOG(System%L) - beta*Emin + LOG(summation)
 
-  END SUBROUTINE NSPartition
+! END SUBROUTINE NSPartition
 
 
   ! Relax the system to energy lower than threshold
