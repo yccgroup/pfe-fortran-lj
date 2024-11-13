@@ -4,6 +4,8 @@ MODULE MODPFE
     USE MODLJ
     USE MODMC
     USE MODUTIL
+    USE,INTRINSIC :: iso_fortran_env, ONLY: iostat_end
+
   IMPLICIT NONE
 
   TYPE PFE
@@ -237,6 +239,8 @@ MODULE MODPFE
     REAL*8 :: Edagg, Estar, Eroot, fract, Elevel
     REAL*8 :: stepsize, logVolume, VErr2, Einitmin
     REAL*8 :: movedist, movedist_std, sum_movedist, sum2_movedist
+    LOGICAL :: havefile
+    INTEGER :: iostat
 
     ! initialization
     Edagg = self%Edagg
@@ -248,7 +252,6 @@ MODULE MODPFE
     nsteps = self%nsteps
     stepsize = self%stepsize
     nrelaxsteps = 0
-    VErr2 = 0
 
     ! to start, generate samples all within the root energy,
     ! via rejection sampling
@@ -267,13 +270,49 @@ MODULE MODPFE
     ! open files
     OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
     OPEN(UNIT=20,FILE="Levels.dat",STATUS="UNKNOWN")
-    !OPEN(UNIT=30,FILE=TRIM(self%filename),STATUS="UNKNOWN")
 
-    Elevel = Eroot
-    logVolume = 0.d0
+    ! check the NS data file
+    INQUIRE(FILE=TRIM(self%filename), EXIST=havefile)
+    IF (havefile) THEN
+      OPEN(UNIT=30,FILE=TRIM(self%filename),STATUS="old",FORM="unformatted",ACTION="read")
+      CALL check_header(30, nsamples, System)
+    ELSE
+      OPEN(UNIT=30,FILE=TRIM(self%filename),STATUS="new",FORM="unformatted",ACTION="write")
+      ! write header
+      WRITE(30) nsamples
+      WRITE(30) System%natoms, System%mass, System%epsilom, System%sigma, System%L, System%rc
+    END IF
+
+    ! scan through available data until Elevel <= Estar
+    IF (havefile) THEN
+      DO 
+        READ(30, IOSTAT=iostat) iterid, Elevel, logVolume, Verr2
+        IF (iostat == iostat_end) THEN
+          ! end of file, we didn't read anything, so those 4 values are
+          ! still the ones matching the energy/XYZ data
+          EXIT
+        ELSE IF (Elevel <= Estar) THEN
+          ! level too low, we need to go back
+          BACKSPACE(30)
+          BACKSPACE(30)
+          BACKSPACE(30)
+          ! and re-read the 4 values matching the current energy/XYZ data
+          READ(30) iterid, Elevel, logVolume, Verr2
+          EXIT
+        ELSE
+          PRINT *, 'DEBUG read: ', iterid, Elevel, logVolume, Verr2
+          READ(30) (Samples(i)%energy, Samples(i)%XYZ, i=1,nsamples)
+        END IF
+      END DO
+
+    ELSE
+      iterid = 0
+      Elevel = Eroot
+      logVolume = 0.d0
+      VErr2 = 0
+    END IF
 
     ! calculate the log of the relative volume iteratively
-    iterid = 0
     DO WHILE (Elevel > Estar)
 
       ! update Elevel
@@ -338,6 +377,15 @@ MODULE MODPFE
       WRITE(20,*) Elevel*cal2joule, logVolume, EXP(logVolume)
       FLUSH(20)
 
+      ! save NS data
+      IF (.NOT. havefile) THEN
+        IF (MOD(iterid, self%saveinterval) == 0) THEN
+          WRITE(30) iterid, Elevel, logVolume, Verr2
+          WRITE(30) (Samples(i)%energy, Samples(i)%XYZ, i=1,nsamples)
+          FLUSH(30)
+        END IF
+      END IF
+
       ! update when Estar is reached
       IF (Elevel == Estar) THEN
         self%logVstar = logVolume
@@ -348,6 +396,7 @@ MODULE MODPFE
 
     CLOSE(10)
     CLOSE(20)
+    CLOSE(30)
 
     IF (flag) THEN
       self%logVdagg = logVolume
@@ -463,5 +512,33 @@ MODULE MODPFE
     movedist = NORM2(System%XYZ - XYZorig)
 
   END SUBROUTINE propagate
+
+
+  ! Check the header of the NS data file against the current system
+  SUBROUTINE check_header(fd, nsamples, System)
+    INTEGER,INTENT(IN) :: fd, nsamples
+    TYPE(LJ),INTENT(IN) :: System
+    INTEGER :: nsamples1, natoms1
+    REAL*8 :: mass1, epsilom1, sigma1, L1, rc1
+
+    READ(fd) nsamples1
+    READ(fd) natoms1, mass1, epsilom1, sigma1, L1, rc1
+    IF (nsamples1 /= nsamples)      CALL complain('NS nsamples')
+    IF (natoms1 /= System%natoms)   CALL complain('System natoms')
+    IF (mass1 /= System%mass)       CALL complain('System mass')
+    IF (epsilom1 /= System%epsilom) CALL complain('System epsilon')
+    IF (sigma1 /= System%sigma)     CALL complain('System sigma')
+    IF (L1 /= System%L)             CALL complain('System boxsize')
+    IF (rc1 /= System%rc)           CALL complain('System LJ cutoff')
+
+    CONTAINS
+
+    SUBROUTINE complain(what)
+      CHARACTER(LEN=*),INTENT(IN) :: what
+      WRITE(*,'(3a)') 'ERROR: parameter "', what, '" differs between input and NS data file'
+      STOP 1
+    END SUBROUTINE complain
+
+  END SUBROUTINE check_header
 
 END MODULE MODPFE
