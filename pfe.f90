@@ -55,6 +55,7 @@ MODULE MODPFE
     ALLOCATE(Work(edim),Heaviside(edim),Func(edim),Func2(edim))
     Emax = MAXVAL(Energy)
     Emin = MINVAL(Energy)
+    PRINT *, 'DEBUG PartFunc: Emax  = ', Emax, 'Emin  = ', Emin
     Func(:) = EXP(beta*(Energy-Emax))
     Func2(:) = EXP(2*beta*(Energy-Emax))
 
