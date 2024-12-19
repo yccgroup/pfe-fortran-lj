@@ -9,9 +9,8 @@ PROGRAM Main
   TYPE(LJ) :: System
   TYPE(MC) :: MCeq, MCrun
   TYPE(PFE) :: Parfu
-  INTEGER :: i, j, k
-  INTEGER :: seed, nbin, edim, io
-  REAL*8 :: temperature, beta, kBT, r2, pot, val 
+  INTEGER :: i, j, k, seed, nbin
+  REAL*8 :: temperature, beta, kBT, r2, pot
   REAL*8 :: lambda_th, lnZ, lnQ, lnP
   REAL*8, Parameter :: dE=0.01
   REAL*8, ALLOCATABLE :: Energy(:)
@@ -129,30 +128,8 @@ PROGRAM Main
     !! Read MC data
     !CALL MCrun%Read(System,beta,TRIM(MCfilename))
 
-    ! Read energy file (first time to get edim)
-    OPEN(UNIT=20, FILE=energyfilename, STATUS='OLD', ACTION='READ')
-    edim = 0
-    DO
-      READ(20, *, IOSTAT=io) val
-      IF (io > 0) THEN
-        WRITE(*,*) "Error in reading the energy file:", energyfilename, "!"
-      ELSE IF (io < 0) THEN
-        EXIT
-      ELSE
-        edim = edim + 1
-      END IF
-    END DO
-    CLOSE(20)
-
-    ALLOCATE(Energy(edim))
-
-    ! Read energy file (second time to get energy data)
-    OPEN(UNIT=20, FILE=energyfilename, STATUS='OLD', ACTION='READ')
-    DO i = 1, edim
-      READ(20, *) Energy(i)
-    END DO
-    CLOSE(20)
-
+    ! Read energy file
+    CALL read_array(energyfilename, Energy)
     ! Unit kJ/mol to kcal/mol
     Energy = Energy / cal2joule 
 

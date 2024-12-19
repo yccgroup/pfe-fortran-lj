@@ -61,4 +61,39 @@ MODULE MODUTIL
     Vtarget = volumes(levelid) + slope * (Etarget - levels(levelid))
   END FUNCTION INTERPOLATE
 
+
+  ! Read data from file into array.
+  SUBROUTINE read_array(filename, data)
+    CHARACTER(LEN=*),INTENT(IN) :: filename
+    REAL*8, ALLOCATABLE :: data(:)
+    INTEGER :: fd, io, ndata, i
+    REAL*8 :: val
+
+    ! Read file (first time to get ndata)
+    OPEN(NEWUNIT=fd, FILE=TRIM(filename), STATUS='OLD', ACTION='READ')
+    ndata = 0
+    DO
+      READ(fd, *, IOSTAT=io) val
+      IF (io > 0) THEN
+        WRITE(*,*) "Error reading the file: ", TRIM(filename), " !"
+        STOP 1
+      ELSE IF (io < 0) THEN
+        EXIT
+      ELSE
+        ndata = ndata + 1
+      END IF
+    END DO
+    CLOSE(fd)
+
+    ALLOCATE(data(ndata))
+
+    ! Read file (second time to get data)
+    OPEN(NEWUNIT=fd, FILE=TRIM(filename), STATUS='OLD', ACTION='READ')
+    DO i = 1, ndata
+      READ(fd, *) data(i)
+    END DO
+    CLOSE(fd)
+
+  END SUBROUTINE read_array
+
 END MODULE MODUTIL
