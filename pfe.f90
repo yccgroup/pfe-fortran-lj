@@ -4,11 +4,12 @@ MODULE MODPFE
     USE MODLJ
     USE MODMC
     USE MODUTIL
+    USE MODSORT
   IMPLICIT NONE
 
   TYPE PFE
     INTEGER :: nsamples, nsteps, nlevel, nextrasteps
-    REAL*8  :: stepsize, fract, percentage
+    REAL*8  :: cutoffpc, stepsize, fract, percentage
     REAL*8  :: Edagg, Estar, Err2, Avg, Avg2
     REAL*8  :: Eroot, VErr2
     REAL*8  :: lnQ, logVolume, logVstar, logVdagg
@@ -29,6 +30,7 @@ MODULE MODPFE
     CLASS(PFE) :: self
     INTEGER :: fd
 
+    READ(fd,*) self%cutoffpc
     READ(fd,*) self%nsamples
     READ(fd,*) self%nextrasteps
     READ(fd,*) self%nsteps
@@ -57,7 +59,6 @@ MODULE MODPFE
     Func2(:) = EXP(2*beta*(Energy-Emax))
 
     Estar = Emax
-    !Estar = 0.75*Emax + 0.25*Emin
     Estar_prev = Estar
     difference = 1
 
@@ -84,10 +85,9 @@ MODULE MODPFE
       Estar_prev = Estar
     END DO
 
-    ! For Estar = Emax, the cutoff search failed. Choose an easy cutoff.
+    ! For Estar = Emax, the cutoff search failed. Cut off the top% energies.
     IF (ABS(Estar-Emax) < 1E-6) THEN
-      ! Generate a proper cutoff
-      Estar = 0.75*Emax + 0.25*Emin
+      Estar = quantile(Energy, 1.d0 - self%cutoffpc/100.d0)
     END IF
 
     ! Assign Estar and Edagg

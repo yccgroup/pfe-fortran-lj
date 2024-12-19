@@ -4,6 +4,7 @@ MODULE MODSORT
 
 CONTAINS
 
+  ! Sort the array in ascending order.
   RECURSIVE SUBROUTINE qsort(data)
     REAL*8,INTENT(INOUT) :: data(:)
     REAL*8 :: pivot
@@ -61,5 +62,24 @@ CONTAINS
     END FUNCTION median3
 
   END SUBROUTINE qsort
+
+
+  ! Compute the desired quantile (p between 0 and 1) of the data.
+  FUNCTION quantile(data, p) RESULT (q)
+    REAL*8,INTENT(IN) :: data(:)
+    REAL*8,INTENT(IN) :: p
+    REAL*8 :: q
+    INTEGER :: ndata, idx
+    REAL*8,ALLOCATABLE :: sorted(:)
+
+    ndata = SIZE(data)
+    ! copy the data and sort it
+    ALLOCATE(sorted, SOURCE=data)
+    CALL qsort(sorted)
+    ! calculate the quantile index
+    idx = NINT(1 + p*(ndata-1))
+    ! return the result
+    q = sorted(idx)
+  END FUNCTION quantile
 
 END MODULE MODSORT

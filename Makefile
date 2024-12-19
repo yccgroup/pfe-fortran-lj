@@ -9,7 +9,7 @@ FCFLAGS = -g -c -O3 -Wall -march=native
 FLFLAGS =
 
 # source files and objects
-SRCS = const.f90 utilities.f90 LJparticles.f90 sampling.f90 pfe.f90 debug.f90 Main.f90
+SRCS = const.f90 utilities.f90 sort.f90 LJparticles.f90 sampling.f90 pfe.f90 debug.f90 Main.f90
 OBJS = $(patsubst %.f90, %.o, $(SRCS))
 
 TestPot_SRCS = const.f90 LJparticles.f90 modopenmm.f90 TestPot.f90
