@@ -86,8 +86,8 @@ MODULE MODPFE
       Estar_prev = Estar
     END DO
 
-    ! For Estar = Emax, the cutoff search failed. Cut off the top% energies.
-    IF (ABS(Estar-Emax) < 1E-6) THEN
+    ! For Estar >= Emax, the cutoff search failed. Cut off the top% energies.
+    IF (Estar >= Emax - 1d-6) THEN
       Estar = quantile(Energy, 1.d0 - self%cutoffpc/100.d0)
     END IF
 
