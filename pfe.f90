@@ -237,7 +237,7 @@ MODULE MODPFE
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
     INTEGER :: naccept, tnaccept_relax, tnaccept_prop, initcount
     REAL*8 :: Edagg, Estar, Eroot, fract, Elevel, Elevel_further
-    REAL*8 :: stepsize, logVolume, VErr2, Einitmin, successrate
+    REAL*8 :: stepsize, logVolume, VErr2, successrate
 
     ! initialization
     Edagg = self%Edagg
@@ -282,14 +282,12 @@ MODULE MODPFE
 
     ! to start, generate samples all within the root energy,
     ! via rejection sampling
-    Einitmin = Eroot
     i = 1
     initcount=0
     DO WHILE (i <= nsamples)
       Samples(i) = System
       CALL Samples(i)%genXYZ()
       IF (Samples(i)%getenergy() <= Eroot) THEN
-        Einitmin = Samples(i)%getenergy()
         i = i + 1 
       END IF
       initcount = initcount + 1
@@ -343,7 +341,7 @@ MODULE MODPFE
         1.d0*tnaccept_relax/tnrelaxsteps, 1.d0*tnaccept_prop/(nsteps*noutliers)
       FLUSH(10)
 
-      PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel / Einitmin = ', Elevel/Einitmin
+      PRINT *, 'DEBUG: step ', iterid, '/', niter, 'inliers', ninliers, '/', nsamples, 'Elevel = ', Elevel
 
       ! abort if no inliers (volume becomes zero)
       IF (ninliers == 0) THEN
