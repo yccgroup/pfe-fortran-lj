@@ -1,4 +1,4 @@
-120                    # temperature (K)
+85                     # temperature (K)
 2                      # System natoms
 39.9                   # System mass (openmm: 39.9 amu) 
 0.238                  # System epsilon (openmm: 0.238 kcal/mol)
@@ -12,10 +12,14 @@
 1000000                # MC nsteps (1000000)
 1.0                    # MC stepsize
 1000                   # MC output frequency
-MC.bin                 # filename for MC data
+MC.bin                 # Filename for the MC data
+Energy.dat             # Filename for the energy data
+.True.                 # Cutoff from both end of the energy distribution?
+100                    # Number of bins for the energy distribution (used to find Edagg and Estar, ignored if cutoff is set to .False.)
 200                    # NS nsamples (1000)
+0                      # NS extra relaxation steps (0)
 2000                   # NS nsteps (5000)
 0.5                    # NS stepsize
 0.9                    # NS fraction (ratio between next energy and current energy)
 1e12                   # NS root energy (starting point, full configuration space)
-MC                     # Job: either MC (run MC and save data) or PFE/Exact (calculate the partition function, reads in MC data)
+POT                    # Job: either MC (run MC and save data) or PFE/Exact (calculate the partition function, reads in MC data) or POT (dimer potential)

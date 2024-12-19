@@ -1,0 +1,9 @@
+set view map scale 1
+set xlabel "Estar"
+set ylabel "Edagg"
+set logscale cb
+set size square
+
+plot "errmap.dat" u 2:1:3 w image
+
+pause -1

@@ -9,12 +9,15 @@ PROGRAM Main
   TYPE(LJ) :: System
   TYPE(MC) :: MCeq, MCrun
   TYPE(PFE) :: Parfu
-  INTEGER :: i, j, k, seed
-  REAL*8 :: temperature, beta, kBT 
-  REAL*8 :: lambda_th, lnZ, lnQ, lnZp
+  INTEGER :: i, j, k
+  INTEGER :: seed, nbin, edim, io
+  REAL*8 :: temperature, beta, kBT, r2, pot, val 
+  REAL*8 :: lambda_th, lnZ, lnQ, lnP
   REAL*8, Parameter :: dE=0.01
-  CHARACTER(LEN=80) :: MCfilename
+  REAL*8, ALLOCATABLE :: Energy(:)
+  LOGICAL :: flag
   CHARACTER(LEN=10) :: Job
+  CHARACTER(LEN=80) :: MCfilename, energyfilename
 
   ! Read inputs from file input.dat
   OPEN(UNIT=10,FILE="input.dat",STATUS="OLD",ACTION="READ")
@@ -36,6 +39,9 @@ PROGRAM Main
 
   ! filename for MC data
   READ(10,*) MCfilename
+  READ(10,*) energyfilename
+  READ(10,*) flag
+  READ(10,*) nbin
 
   ! pfe parameters
   CALL Parfu%rdinp(10)
@@ -59,7 +65,7 @@ PROGRAM Main
   kBT = kB*temperature
   beta = 1.d0/kBT
   lambda_th = (h/SQRT(2*pi*(System%mass*amu2kg)*(kBT*1000*cal2joule/NA))) * 1E10
-  lnZp = -LOG_GAMMA((System%natoms+1)*1d0) - 3*System%natoms*LOG(lambda_th)
+  lnP = -LOG_GAMMA((System%natoms+1)*1d0) - 3*System%natoms*LOG(lambda_th)
   PRINT *, "lambda_th:", lambda_th
 
   ! Build LJ system and calculate the system energy
@@ -101,19 +107,63 @@ PROGRAM Main
     PRINT *, "Average energy (kJ/mol) =", SUM(MCrun%Energy)*cal2joule/MCrun%outdim
 
 
+  ELSE IF (Job == 'POT') THEN
+
+    ! Print out the potential energy function
+    OPEN(UNIT=20,FILE="pot.dat",STATUS="UNKNOWN")
+    WRITE(20,*) "# distance (nm)  potential (kcal/mol)"
+    DO i=1,300
+      r2 = (0.1*i)**2
+      pot = System%calcpairpot(r2)
+      System%XYZ = 0
+      System%XYZ(1,2) = 0.1*i
+      CALL System%calcenergy()
+      WRITE(20,*) 0.1*i/10, pot, System%energy
+    END DO  
+    CLOSE(20)
+
   ELSE ! Job /= MC
 
     Parfu%Method = Job
 
-    ! Read MC data
-    CALL MCrun%Read(System,beta,TRIM(MCfilename))
+    !! Read MC data
+    !CALL MCrun%Read(System,beta,TRIM(MCfilename))
+
+    ! Read energy file (first time to get edim)
+    OPEN(UNIT=20, FILE=energyfilename, STATUS='OLD', ACTION='READ')
+    edim = 0
+    DO
+      READ(20, *, IOSTAT=io) val
+      IF (io > 0) THEN
+        WRITE(*,*) "Error in reading the energy file:", energyfilename, "!"
+      ELSE IF (io < 0) THEN
+        EXIT
+      ELSE
+        edim = edim + 1
+      END IF
+    END DO
+    CLOSE(20)
+
+    ALLOCATE(Energy(edim))
+
+    ! Read energy file (second time to get energy data)
+    OPEN(UNIT=20, FILE=energyfilename, STATUS='OLD', ACTION='READ')
+    DO i = 1, edim
+      READ(20, *) Energy(i)
+    END DO
+    CLOSE(20)
+
+    ! Unit kJ/mol to kcal/mol
+    Energy = Energy / cal2joule 
+
 
     ! Partition Function for Natoms = 1
     IF (System%natoms == 1) THEN
       lnQ = 3*LOG(System%L) 
-      lnZ = lnQ + lnZp 
+      lnZ = lnQ + lnP 
+      PRINT *, "kBT (kJ/mol)", kBT*cal2joule
       PRINT *, "lnQ = ", lnQ
-      PRINT *, "lnZp = ", lnZp
+      PRINT *, "lnP = ", lnP
       PRINT *, "lnZ = ", lnZ
       STOP
     END IF
@@ -128,12 +178,12 @@ PROGRAM Main
       CALL MCrun%Minimize(System) 
       CALL System%calcenergy()
       Parfu%Estar = System%Energy + kBT*0.1
-      CALL Parfu%NSVolume(System,System%Energy)
+      CALL Parfu%NSVolume(System,System%Energy,.FALSE.)
       CALL Parfu%NSPartition(System,beta)
-      lnQ = Parfu%lnZ
-      lnZ = lnQ + lnZp
+      lnQ = Parfu%lnQ
+      lnZ = lnQ + lnP
       PRINT *, "NS lnQ = ", lnQ
-      PRINT *, "NS lnZp = ", lnZp
+      PRINT *, "NS lnP = ", lnP
       PRINT *, "NS lnZ = ", lnZ
   
     ELSE IF (Parfu%Method == "PFE") THEN
@@ -141,18 +191,22 @@ PROGRAM Main
       ! Calculate partition function by PFE (our theory)
       PRINT *, "Letitia: calculate partition function via PFE"
       FLUSH(6)
-      CALL Parfu%PartFunc(System,MCrun%Energy,beta)
-      lnQ = Parfu%lnZ
-      lnZ = lnQ + lnZp
+      IF (flag) THEN
+        CALL Parfu%PartFunc2(System,Energy,beta,nbin)
+      ELSE
+        CALL Parfu%PartFunc(System,Energy,beta)
+      END IF
+      lnQ = Parfu%lnQ
+      lnZ = lnQ + lnP
       PRINT *, "PFE lnQ = ", lnQ
-      PRINT *, "PFE lnZp = ", lnZp
+      PRINT *, "PFE lnP = ", lnP
       PRINT *, "PFE lnZ = ", lnZ
       PRINT *, "PFE Err VErr Err+VErr = ", SQRT(Parfu%Err2), SQRT(Parfu%VErr2), SQRT(Parfu%Err2+Parfu%VErr2)
       PRINT *, "Estar = ", Parfu%Estar*cal2joule, "kJ/mol"
       PRINT *, "Cutoff % = ", Parfu%percentage*100
   
       ! DEBUG for Natoms == 2 only
-      IF (System%natoms == 2) CALL DEBUG(System,beta,lnZp)
+      IF (System%natoms == 2) CALL DEBUG(System,beta,lnP)
       
     END IF ! Method
 
