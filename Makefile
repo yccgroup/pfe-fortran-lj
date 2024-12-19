@@ -12,24 +12,31 @@ FLFLAGS =
 SRCS = const.f90 utilities.f90 LJparticles.f90 sampling.f90 pfe.f90 debug.f90 Main.f90
 OBJS = $(patsubst %.f90, %.o, $(SRCS))
 
-TEST_SRCS = const.f90 LJparticles.f90 modopenmm.f90 TestPot.f90
-TEST_OBJS = $(patsubst %.f90, %.o, $(TEST_SRCS))
+TestPot_SRCS = const.f90 LJparticles.f90 modopenmm.f90 TestPot.f90
+TestPot_OBJS = $(patsubst %.f90, %.o, $(TestPot_SRCS))
+
+TestSort_SRCS = utilities.f90 sort.f90 TestSort.f90
+TestSort_OBJS = $(patsubst %.f90, %.o, $(TestSort_SRCS))
 
 # program name
 PROGRAM = pfe
-TEST_PROGRAM = TestPot
+TestPot_PROGRAM = TestPot
+TestSort_PROGRAM = TestSort
 
-all: $(PROGRAM) $(TEST_PROGRAM)
+all: $(PROGRAM) $(TestPot_PROGRAM) $(TestSort_PROGRAM)
 
 $(PROGRAM): $(OBJS)
 	$(FC) $(FLFLAGS) -o $@ $+
 
-$(TEST_PROGRAM): $(TEST_OBJS)
+$(TestPot_PROGRAM): $(TestPot_OBJS)
+	$(FC) $(FLFLAGS) -o $@ $+
+
+$(TestSort_PROGRAM): $(TestSort_OBJS)
 	$(FC) $(FLFLAGS) -o $@ $+
 
 %.o: %.f90
 	$(FC) $(FCFLAGS) -o $@ $<
 
 clean:
-	rm -f *.o *.mod $(PROGRAM) $(TEST_PROGRAM)
+	rm -f *.o *.mod $(PROGRAM) $(TestPot_PROGRAM) $(TestSort_PROGRAM)
 
