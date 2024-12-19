@@ -161,6 +161,7 @@ PROGRAM Main
     IF (System%natoms == 1) THEN
       lnQ = 3*LOG(System%L) 
       lnZ = lnQ + lnP 
+      PRINT *, "kBT (kJ/mol)", kBT*cal2joule
       PRINT *, "lnQ = ", lnQ
       PRINT *, "lnP = ", lnP
       PRINT *, "lnZ = ", lnZ
@@ -191,7 +192,6 @@ PROGRAM Main
       PRINT *, "Letitia: calculate partition function via PFE"
       FLUSH(6)
       IF (flag) THEN
-        PRINT *, "call PartFunc2"
         CALL Parfu%PartFunc2(System,Energy,beta,nbin)
       ELSE
         CALL Parfu%PartFunc(System,Energy,beta)

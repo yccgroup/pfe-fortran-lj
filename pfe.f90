@@ -57,6 +57,7 @@ MODULE MODPFE
     Func2(:) = EXP(2*beta*(Energy-Emax))
 
     Estar = Emax
+    !Estar = 0.75*Emax + 0.25*Emin
     Estar_prev = Estar
     difference = 1
 
@@ -83,11 +84,15 @@ MODULE MODPFE
       Estar_prev = Estar
     END DO
 
-    ! For Estar = 0, choose Estar=Emin+4*kBT
-    IF (Estar == 0.d0) Estar = MINVAL(Energy) + 4.d0/beta
+    ! For Estar = Emax, the cutoff search failed. Choose an easy cutoff.
+    IF (ABS(Estar-Emax) < 1E-6) THEN
+      ! Generate a proper cutoff
+      Estar = 0.75*Emax + 0.25*Emin
+    END IF
 
-    ! Assign Estar
+    ! Assign Estar and Edagg
     self%Estar = Estar
+    self%Edagg = Emin
 
     ! Recalculate Avg, Avg2, Err based on the final Estar, also calculate the cutoff percentage for statistics
     Heaviside(:) = 1.d0
@@ -230,9 +235,9 @@ MODULE MODPFE
     INTEGER :: i
     INTEGER :: ndagg, nstar, niter, nsamples, nsteps, nextrasteps
     INTEGER :: iterid, nrelaxsteps, tnrelaxsteps, noutliers, ninliers
-    INTEGER :: naccept, tnaccept_relax, tnaccept_prop
+    INTEGER :: naccept, tnaccept_relax, tnaccept_prop, initcount
     REAL*8 :: Edagg, Estar, Eroot, fract, Elevel, Elevel_further
-    REAL*8 :: stepsize, logVolume, VErr2, Einitmin
+    REAL*8 :: stepsize, logVolume, VErr2, Einitmin, successrate
 
     ! initialization
     Edagg = self%Edagg
@@ -279,6 +284,7 @@ MODULE MODPFE
     ! via rejection sampling
     Einitmin = Eroot
     i = 1
+    initcount=0
     DO WHILE (i <= nsamples)
       Samples(i) = System
       CALL Samples(i)%genXYZ()
@@ -286,13 +292,16 @@ MODULE MODPFE
         Einitmin = Samples(i)%getenergy()
         i = i + 1 
       END IF
+      initcount = initcount + 1
     END DO
+    successrate = nsamples * 1.d0 / initcount
+    PRINT *, "initial conformation generation success rate:",successrate
 
     ! ouput for NS performance statistics
     OPEN(UNIT=10,FILE="Statistics.dat",STATUS="UNKNOWN")
 
     Elevel = Eroot
-    logVolume = 0.d0
+    logVolume = 0.d0 + LOG(successrate)
 
     ! calculate the log of the relative volume iteratively
     DO iterid = 1, niter
