@@ -152,9 +152,11 @@ PROGRAM Main
       PRINT *, "Letitia: calculate partition function via NS"
       FLUSH(6)
       ! Determine Estar and Emin for Exact method
+      CALL System%genXYZ()
       CALL MCrun%Minimize(System) 
       CALL System%calcenergy()
-      Parfu%Estar = System%Energy + kBT*0.1
+      PRINT *, "Emin = ", System%getenergy()
+      Parfu%Estar = System%Energy + kBT*0.001
       CALL Parfu%NSVolume(System,System%Energy,.FALSE.)
       CALL Parfu%NSPartition(System,beta)
       lnQ = Parfu%lnQ

@@ -87,6 +87,7 @@ MODULE MODPFE
     END DO
 
     ! For Estar >= Emax, the cutoff search failed. Cut off the top% energies.
+    PRINT *, "DEBUG PartFunc: Estar = ", Estar
     IF (Estar >= Emax - 1d-6) THEN
       Estar = quantile(Energy, 1.d0 - self%cutoffpc/100.d0)
       PRINT *, 'DEBUG PartFunc: Estar search failed, cutting off top', self%cutoffpc, '% of energies'

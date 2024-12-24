@@ -49,7 +49,6 @@ MODULE MODLJ
 
       ALLOCATE(self%XYZ(3,self%natoms))
       CALL self%genXYZ()
-      self%uptodate = .FALSE.
     END SUBROUTINE lj_init
 
     ! initialize the LJ particles' coordinates
@@ -58,6 +57,7 @@ MODULE MODLJ
 
       CALL RANDOM_NUMBER(self%XYZ)
       self%XYZ = self%XYZ * self%L
+      self%uptodate = .FALSE.
     END SUBROUTINE genXYZ
 
     ! return the energy
