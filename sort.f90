@@ -17,18 +17,23 @@ CONTAINS
       RETURN
     END IF
 
-    mid = (n+1)/2  ! middle index
     ! use Sedgewick's "median of three" pivot
-    pivot = median3(data(1), data(mid), data(n))
+    mid = (n+1)/2  ! middle index
+    IF (data(mid) < data(n))  CALL swap(n,mid)
+    IF (data(1)   < data(n))  CALL swap(1,n)
+    IF (data(mid) < data(1))  CALL swap(mid,1)
+    pivot = data(1)
     ! partition the array
-    i = 1
-    j = n
+    i = 0
+    j = n+1
     DO
-      DO WHILE (data(i) < pivot)
+      DO
         i = i + 1
+        IF (data(i) >= pivot) EXIT
       END DO
-      DO WHILE (data(j) > pivot)
+      DO
         j = j - 1
+        IF (data(j) <= pivot) EXIT
       END DO
       IF (i >= j) EXIT
       CALL swap(i,j)
@@ -46,20 +51,6 @@ CONTAINS
       data(i) = data(j)
       data(j) = tmp
     END SUBROUTINE swap
-
-    FUNCTION median3(a,b,c) RESULT (med)
-      REAL*8,INTENT(IN) :: a,b,c
-      REAL*8 :: med
-      ! Is a the median? [b,a,c] or [c,a,b]
-      IF ( ((b<=a).AND.(a<=c)) .OR. ((c<=a).AND.(a<=b)) ) THEN
-        med = a
-      ! Is c the median? [b,c,a] or [a,c,b]
-      ELSEIF ( ((b<=c).AND.(c<=a)) .OR. ((a<=c).AND.(c<=b)) ) THEN
-        med = c
-      ELSE
-        med = b
-      END IF
-    END FUNCTION median3
 
   END SUBROUTINE qsort
 
